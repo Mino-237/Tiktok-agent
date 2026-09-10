@@ -1,0 +1,66 @@
+name: "1 - Skript generieren"
+
+on:
+  schedule:
+    # Läuft jeden Tag um 15:00 UTC = 17:00 Uhr deutsche Sommerzeit.
+    # Ab Ende Oktober (Winterzeit) auf "0 16 * * *" ändern, für 17:00 Uhr.
+    - cron: "0 15 * * *"
+  workflow_dispatch:
+    # Erlaubt manuelles Starten über den "Run workflow"-Button, z.B. zum Testen.
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Code auschecken
+        uses: actions/checkout@v4
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Abhängigkeiten installieren
+        run: pip install -r requirements.txt
+
+      - name: Skript generieren
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python 1_generate.py
+
+      - name: Themen-Pool/Historie/Skript zurück ins Repo committen
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add themen_pool.json themen_historie.json pending_script.json
+          git diff --staged --quiet || git commit -m "Neues Skript zur Freigabe generiert [skip ci]"
+          git push
+
+      - name: Freigabe-Issue erstellen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TITEL=$(python3 -c "import json; print(json.load(open('pending_script.json'))['titel'])")
+          SKRIPT=$(python3 -c "import json; print(json.load(open('pending_script.json'))['vollstaendiges_skript'])")
+          gh issue create \
+            --title "Skript-Freigabe: $TITEL" \
+            --body "Ein neues Skript wurde generiert und wartet auf deine Prüfung, bevor es als Video veröffentlicht wird.
+
+          **Titel:** $TITEL
+
+          **Skript:**
+          $SKRIPT
+
+          ---
+
+          **So geht's weiter:**
+          1. Öffne \`pending_script.json\` in diesem Repository und bearbeite den Text bei Bedarf (z.B. eigene Formulierung/Meinung einbauen) - direkt im Browser über den Stift-Button editierbar.
+          2. Sobald du zufrieden bist: Gehe zu 'Actions' → Workflow '2 - Video erstellen' → 'Run workflow'.
+          3. Nach ca. 5-8 Minuten: Öffne den fertigen Workflow-Lauf, lade die Datei 'tiktok-video-...' unter 'Artifacts' herunter.
+          4. Lade das heruntergeladene Video manuell in der TikTok-App hoch (Post-Button, wie gewohnt).
+          5. Danach kannst du dieses Issue schließen." \
+            --label "skript-freigabe"
