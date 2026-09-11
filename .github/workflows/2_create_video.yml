@@ -33,6 +33,7 @@ jobs:
         env:
           DID_API_KEY: ${{ secrets.DID_API_KEY }}
           DID_AVATAR_IMAGE_URL: ${{ secrets.DID_AVATAR_IMAGE_URL }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: python 2_create_video.py
 
       - name: Fertiges Video zum Download bereitstellen
