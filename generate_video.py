@@ -48,7 +48,9 @@ def video_erstellen(skript_text: str) -> str:
         "Authorization": f"Basic {DID_API_KEY}",
         "Content-Type": "application/json",
     }
-    r = requests.post(f"{BASE_URL}/talks", json=payload, headers=headers)
+      r = requests.post(f"{BASE_URL}/talks", json=payload, headers=headers)
+    if not r.ok:
+        print(f"D-ID Antwort (Status {r.status_code}): {r.text}")
     r.raise_for_status()
     return r.json()["id"]
 
