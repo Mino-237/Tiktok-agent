@@ -72,7 +72,7 @@ STRUKTUR (immer einhalten):
 
 WICHTIG:
 - Einfache, gesprochene Sprache, keine Fachbegriffe ohne Erklärung
-- Insgesamt 130-170 Wörter (für ~60-75 Sekunden Sprechzeit)
+- Insgesamt 190-230 Wörter (für ~75-95 Sekunden Sprechzeit, WICHTIG: unbedingt über 65 Sekunden, TikTok Creator Rewards verlangt mindestens 60 Sekunden)
 - Antworte NUR mit validem JSON, keine Markdown-Codeblöcke, kein Vorspann.
 
 Format:
