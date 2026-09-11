@@ -48,7 +48,7 @@ def video_erstellen(skript_text: str) -> str:
         "Authorization": f"Basic {DID_API_KEY}",
         "Content-Type": "application/json",
     }
-    print(f"Avatar-URL wird genutzt: '{AVATAR_BILD_URL}' (Länge: {len(AVATAR_BILD_URL)})")
+    print(f"Avatar-URL Länge: {len(AVATAR_BILD_URL)}, Anfang: '{AVATAR_BILD_URL[:15]}', Ende: '{AVATAR_BILD_URL[-15:]}', hat Leerzeichen: {AVATAR_BILD_URL != AVATAR_BILD_URL.strip()}")
     r = requests.post(f"{BASE_URL}/talks", json=payload, headers=headers)
     if not r.ok:
         print(f"D-ID Antwort (Status {r.status_code}): {r.text}")
