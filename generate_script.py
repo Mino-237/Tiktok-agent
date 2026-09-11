@@ -59,6 +59,13 @@ THEMEN_HISTORIE_DATEI = "themen_historie.json"
 MINDEST_PUFFER = 8
 NEUE_THEMEN_PRO_NACHSCHUB = 20
 
+# Mindest-Wortanzahl fürs vollständige Skript. TikTok Creator Rewards
+# verlangt mindestens 60 Sekunden Videolänge - bei ca. 2,3-2,5 Wörtern
+# pro Sekunde Sprechzeit braucht man dafür sicher etwas Puffer nach oben,
+# damit man nicht knapp drunter landet (siehe MINDEST_WOERTER unten).
+MINDEST_WOERTER = 230
+MAX_GENERIERUNGS_VERSUCHE = 3
+
 SYSTEM_PROMPT = """Du hilfst dabei, ein 60-90 Sekunden Skript für ein TikTok-Format
 namens "Warum tun wir das?" zu entwerfen. Das Format erklärt Alltagspsychologie
 verständlich und mit einem konkreten Beispiel.
@@ -72,7 +79,11 @@ STRUKTUR (immer einhalten):
 
 WICHTIG:
 - Einfache, gesprochene Sprache, keine Fachbegriffe ohne Erklärung
-- Insgesamt 190-230 Wörter (für ~75-95 Sekunden Sprechzeit, WICHTIG: unbedingt über 65 Sekunden, TikTok Creator Rewards verlangt mindestens 60 Sekunden)
+- Insgesamt MINDESTENS 230 Wörter, gerne bis 260 Wörter (für ~90-105
+  Sekunden Sprechzeit). Diese Mindestanzahl ist eine HARTE Vorgabe, kein
+  Richtwert - lieber zu lang als zu kurz. TikTok Creator Rewards verlangt
+  mindestens 60 Sekunden Videolänge, ein zu kurzes Skript macht das Video
+  unbrauchbar.
 - Antworte NUR mit validem JSON, keine Markdown-Codeblöcke, kein Vorspann.
 
 Format:
@@ -89,18 +100,40 @@ Format:
 
 
 def generiere_skript(thema: str) -> dict:
-    response = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=1000,
-        system=SYSTEM_PROMPT,
-        messages=[
-            {"role": "user", "content": f"Thema für heute: {thema}"}
-        ],
+    """Lässt Claude ein Skript generieren und prüft danach die tatsächliche
+    Wortanzahl. Falls das Skript trotz Vorgabe zu kurz ausfällt (kommt
+    gelegentlich vor), wird bis zu MAX_GENERIERUNGS_VERSUCHE-mal neu
+    generiert, bevor aufgegeben wird. Das verhindert, dass ein zu kurzes
+    Skript erst spät im Ablauf (bei D-ID, nach mehreren Minuten Wartezeit)
+    als Problem auffällt."""
+    for versuch in range(1, MAX_GENERIERUNGS_VERSUCHE + 1):
+        response = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=1000,
+            system=SYSTEM_PROMPT,
+            messages=[
+                {"role": "user", "content": f"Thema für heute: {thema}"}
+            ],
+        )
+        text = response.content[0].text.strip()
+        # Falls Claude trotz Anweisung Codeblock-Fences liefert, entfernen wir sie sicherheitshalber
+        text = text.replace("```json", "").replace("```", "").strip()
+        daten = json.loads(text)
+
+        woerter_anzahl = len(daten["vollstaendiges_skript"].split())
+        if woerter_anzahl >= MINDEST_WOERTER:
+            print(f"Skript hat {woerter_anzahl} Wörter (Versuch {versuch}/{MAX_GENERIERUNGS_VERSUCHE}) - ausreichend lang.")
+            return daten
+
+        print(
+            f"Skript zu kurz ({woerter_anzahl} von mindestens {MINDEST_WOERTER} "
+            f"Wörtern, Versuch {versuch}/{MAX_GENERIERUNGS_VERSUCHE}) - generiere erneut..."
+        )
+
+    raise ValueError(
+        f"Konnte nach {MAX_GENERIERUNGS_VERSUCHE} Versuchen kein Skript mit "
+        f"mindestens {MINDEST_WOERTER} Wörtern generieren. Bitte manuell prüfen."
     )
-    text = response.content[0].text.strip()
-    # Falls Claude trotz Anweisung Codeblock-Fences liefert, entfernen wir sie sicherheitshalber
-    text = text.replace("```json", "").replace("```", "").strip()
-    return json.loads(text)
 
 
 def pool_laden() -> list:
@@ -215,3 +248,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
