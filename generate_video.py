@@ -37,10 +37,10 @@ def video_erstellen(skript_text: str) -> str:
         "script": {
             "type": "text",
             "input": skript_text,
+            "provider": {"type": "microsoft", "voice_id": "de-DE-ConradNeural"}
             # Kein eigener "provider" angegeben -> D-ID nutzt die
             # Standard Microsoft-Stimme. Für eine konsistente deutsche
             # Stimme kann optional ergänzt werden:
-            # "provider": {"type": "microsoft", "voice_id": "de-DE-ConradNeural"}
         },
         "config": {"result_format": "mp4"},
     }
