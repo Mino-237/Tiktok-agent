@@ -10,6 +10,15 @@ Abschnitts richtet sich ungefähr nach dessen Wortanzahl im Verhältnis
 zur Gesamt-Videolänge, damit der Bildwechsel halbwegs zum Sprechtempo
 passt (keine frame-genaue Synchronisation, aber eine gute Annäherung).
 
+WICHTIGER FFMPEG-HINWEIS (siehe hintergrund_video_erstellen):
+Jedes Bild-Input bekommt eine FESTE Framerate (-framerate FPS) und der
+zoompan-Filter arbeitet mit d=1 (ein Ausgabebild pro Eingabebild, mit
+kleinem Zoom-Schritt pro Bild). Das ist wichtig, um einen bekannten
+ffmpeg-Fallstrick zu vermeiden: Setzt man "-t" VOR "-i" (Input-Option)
+UND lässt zoompan gleichzeitig mit d=<viele Frames> jedes Eingabebild
+weiter vervielfachen, multiplizieren sich beide Effekte und es entsteht
+ein VIEL zu langes Video (z.B. 70+ Minuten statt ~90 Sekunden).
+
 KOSTEN-HINWEIS: 5 Bilder statt 1 pro Video bedeuten ca. 5x höhere
 GPT-Image-Kosten (~$0,20 statt ~$0,04 pro Video bei Medium-Qualität).
 """
@@ -87,18 +96,29 @@ def abschnitts_dauern_berechnen(skript_daten: dict, gesamt_dauer: float) -> list
 
 def hintergrund_video_erstellen(bild_pfade_und_dauern: list, ziel_pfad: str):
     """Baut aus mehreren Bildern + individuellen Anzeigedauern ein
-    einziges Video mit Ken-Burns-Zoom pro Bild und nahtlosem Übergang."""
+    einziges Video mit Ken-Burns-Zoom pro Bild und nahtlosem Übergang.
+
+    WICHTIG: -framerate wird VOR -loop/-i gesetzt, damit jedes Bild mit
+    exakt FPS Bildern pro Sekunde eingelesen wird (statt der ffmpeg-
+    Standard-Bildrate von 25). zoompan nutzt d=1, damit pro Eingabebild
+    genau EIN Ausgabebild mit leicht größerem Zoom erzeugt wird - das
+    verhindert die Frame-Vervielfachung, die vorher zu einem
+    stundenlangen statt sekundenlangen Video geführt hat."""
     inputs = []
     filter_teile = []
 
     for idx, (bild_pfad, dauer) in enumerate(bild_pfade_und_dauern):
-        frames = int(dauer * FPS)
-        inputs += ["-loop", "1", "-t", str(dauer), "-i", bild_pfad]
+        inputs += [
+            "-framerate", str(FPS),
+            "-loop", "1",
+            "-t", str(dauer),
+            "-i", bild_pfad,
+        ]
         filter_teile.append(
             f"[{idx}:v]scale=2160:3840,"
             f"zoompan=z='min(zoom+0.0007,1.15)':"
             f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':"
-            f"d={frames}:s={BREITE}x{HOEHE}:fps={FPS},setsar=1[v{idx}]"
+            f"d=1:s={BREITE}x{HOEHE}:fps={FPS},setsar=1[v{idx}]"
         )
 
     concat_eingaenge = "".join(f"[v{idx}]" for idx in range(len(bild_pfade_und_dauern)))
@@ -143,6 +163,10 @@ def main():
     hintergrund_video_erstellen(bild_pfade_und_dauern, "output/background.mp4")
 
     print(f"Hintergrund erstellt: {sum(d for _, d in bild_pfade_und_dauern):.1f}s (5 Abschnitte)")
+
+
+if __name__ == "__main__":
+    main()
 
 
 if __name__ == "__main__":
