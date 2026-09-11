@@ -109,7 +109,7 @@ def generiere_skript(thema: str) -> dict:
     for versuch in range(1, MAX_GENERIERUNGS_VERSUCHE + 1):
         response = client.messages.create(
             model="claude-sonnet-4-6",
-            max_tokens=1000,
+            max_tokens=2000,
             system=SYSTEM_PROMPT,
             messages=[
                 {"role": "user", "content": f"Thema für heute: {thema}"}
