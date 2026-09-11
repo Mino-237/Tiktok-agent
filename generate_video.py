@@ -97,7 +97,12 @@ def main():
     ziel_pfad = "output/video_roh.mp4"
     print(f"Lade Video herunter nach {ziel_pfad}...")
     video_herunterladen(video_url, ziel_pfad)
-
+        if dauer < 60:
+        raise ValueError(
+            f"Video ist nur {dauer:.1f}s lang (unter 60s-Minimum für TikTok "
+            f"Creator Rewards). Skript in pending_script.json verlängern und "
+            f"Workflow 2 erneut starten."
+        )
     # Dauer wird für den Hintergrund-Generator gebraucht (passende Länge)
     with open("output/video_meta.json", "w", encoding="utf-8") as f:
         json.dump({"duration": dauer}, f)
