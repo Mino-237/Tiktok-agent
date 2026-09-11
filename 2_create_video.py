@@ -16,7 +16,7 @@ ca. 1 Minute).
 
 import json
 import generate_video
-import generate_background
+import generate_background_image as generate_background
 import transcribe_captions
 import create_captions
 import compose_video
