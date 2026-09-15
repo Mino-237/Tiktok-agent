@@ -1,26 +1,21 @@
 """
-Erzeugt den Hintergrund: statt eines einzelnen Bildes wird jetzt PRO
-SKRIPT-ABSCHNITT (Hook, Phänomen, Erklärung, Beispiel, CTA) ein eigenes,
+Erzeugt den Hintergrund: PRO SKRIPT-ABSCHNITT (Hook, Kern, CTA - das
+neue verschlankte 3-Teile-Format für 20-30s Videos) wird ein eigenes,
 thematisch passendes KI-Bild generiert (GPT Image 2) - im Stil einer
 minimalistischen, illustrierten Erklär-Video-Figur (kein Foto-Realismus).
 
-Die 5 Bilder werden nacheinander mit sanftem Zoom (Ken-Burns-Effekt) zu
-einem einzigen Hintergrund-Video zusammengesetzt. Die Länge jedes
-Abschnitts richtet sich ungefähr nach dessen Wortanzahl im Verhältnis
-zur Gesamt-Videolänge, damit der Bildwechsel halbwegs zum Sprechtempo
-passt (keine frame-genaue Synchronisation, aber eine gute Annäherung).
+Die 3 Bilder werden nacheinander mit sanftem Zoom (Ken-Burns-Effekt) zu
+einem einzigen Hintergrund-Video zusammengesetzt.
 
 WICHTIGER FFMPEG-HINWEIS (siehe hintergrund_video_erstellen):
 Jedes Bild-Input bekommt eine FESTE Framerate (-framerate FPS) und der
 zoompan-Filter arbeitet mit d=1 (ein Ausgabebild pro Eingabebild, mit
-kleinem Zoom-Schritt pro Bild). Das ist wichtig, um einen bekannten
-ffmpeg-Fallstrick zu vermeiden: Setzt man "-t" VOR "-i" (Input-Option)
-UND lässt zoompan gleichzeitig mit d=<viele Frames> jedes Eingabebild
-weiter vervielfachen, multiplizieren sich beide Effekte und es entsteht
-ein VIEL zu langes Video (z.B. 70+ Minuten statt ~90 Sekunden).
+kleinem Zoom-Schritt pro Bild). Wichtig, um einen bekannten
+ffmpeg-Fallstrick zu vermeiden (siehe frühere Version dieser Datei für
+Details zum Bug, den das behebt).
 
-KOSTEN-HINWEIS: 5 Bilder statt 1 pro Video bedeuten ca. 5x höhere
-GPT-Image-Kosten (~$0,20 statt ~$0,04 pro Video bei Medium-Qualität).
+KOSTEN-HINWEIS: 3 Bilder statt vorher 5 pro Video - günstiger als der
+vorherige Ansatz (~$0,12 statt ~$0,20 pro Video bei Medium-Qualität).
 """
 
 import os
@@ -33,14 +28,12 @@ client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
 BREITE, HOEHE = 1080, 1920
 FPS = 30
-MINDEST_DAUER_PRO_ABSCHNITT = 5.0  # Sekunden - sonst wirkt der Zoom zu hektisch
+MINDEST_DAUER_PRO_ABSCHNITT = 4.0  # Sekunden - Video ist insgesamt kürzer, also kleinerer Mindestwert
 
 # Reihenfolge MUSS zur Struktur in generate_script.py passen
 ABSCHNITTE = [
     ("hook", "Hook / einleitende Frage"),
-    ("phaenomen", "Benennung des psychologischen Phänomens"),
-    ("erklaerung", "Erklärung, warum es passiert"),
-    ("beispiel", "Konkretes Alltagsbeispiel"),
+    ("kern", "Kern-Erklärung des psychologischen Phänomens"),
     ("cta", "Abschließende Einladung zum Kommentieren"),
 ]
 
@@ -84,9 +77,7 @@ def abschnitts_dauern_berechnen(skript_daten: dict, gesamt_dauer: float) -> list
     ]
     gesamt_woerter = sum(woerter_pro_abschnitt) or 1
 
-    # Kleiner Puffer (wie beim bisherigen Hintergrund-Code), damit das
-    # Hintergrund-Video sicher mindestens so lang ist wie das Avatar-Video
-    ziel_gesamt = gesamt_dauer + 2
+    ziel_gesamt = gesamt_dauer + 1  # kleiner Puffer
 
     roh_dauern = [
         ziel_gesamt * anzahl / gesamt_woerter for anzahl in woerter_pro_abschnitt
@@ -96,14 +87,7 @@ def abschnitts_dauern_berechnen(skript_daten: dict, gesamt_dauer: float) -> list
 
 def hintergrund_video_erstellen(bild_pfade_und_dauern: list, ziel_pfad: str):
     """Baut aus mehreren Bildern + individuellen Anzeigedauern ein
-    einziges Video mit Ken-Burns-Zoom pro Bild und nahtlosem Übergang.
-
-    WICHTIG: -framerate wird VOR -loop/-i gesetzt, damit jedes Bild mit
-    exakt FPS Bildern pro Sekunde eingelesen wird (statt der ffmpeg-
-    Standard-Bildrate von 25). zoompan nutzt d=1, damit pro Eingabebild
-    genau EIN Ausgabebild mit leicht größerem Zoom erzeugt wird - das
-    verhindert die Frame-Vervielfachung, die vorher zu einem
-    stundenlangen statt sekundenlangen Video geführt hat."""
+    einziges Video mit Ken-Burns-Zoom pro Bild und nahtlosem Übergang."""
     inputs = []
     filter_teile = []
 
@@ -159,14 +143,15 @@ def main():
         bild_generieren(prompt, ziel_pfad)
         bild_pfade_und_dauern.append((ziel_pfad, abschnitt_dauer))
 
-    print("Setze Hintergrund-Video aus 5 Bildern zusammen (Ken-Burns-Zoom)...")
+    print("Setze Hintergrund-Video aus 3 Bildern zusammen (Ken-Burns-Zoom)...")
     hintergrund_video_erstellen(bild_pfade_und_dauern, "output/background.mp4")
 
-    print(f"Hintergrund erstellt: {sum(d for _, d in bild_pfade_und_dauern):.1f}s (5 Abschnitte)")
+    print(f"Hintergrund erstellt: {sum(d for _, d in bild_pfade_und_dauern):.1f}s (3 Abschnitte)")
 
 
 if __name__ == "__main__":
     main()
+
 
 
 if __name__ == "__main__":
