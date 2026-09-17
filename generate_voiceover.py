@@ -1,21 +1,27 @@
 """
 Erzeugt die KOMPLETTE Sprachausgabe (Hook + Kern + CTA - das ganze
-Skript) über OpenAIs Text-to-Speech-API. D-ID/Brandon wird nicht mehr
-genutzt - dadurch entfällt die D-ID-Kosten-/Minuten-Begrenzung komplett,
-was für mehrmals tägliches Posten in der Wachstumsphase wichtig ist.
+Skript) über die Azure Text-to-Speech-API (REST-Endpunkt, keine
+zusätzliche SDK-Abhängigkeit nötig - nutzt einfach "requests").
 
-Deutlich günstiger als D-ID (~$0,015/Minute statt ~$0,47/Minute bei
-D-ID Lite) und ohne jedes Mengenlimit außer dem eigenen API-Guthaben.
+Nutzt dieselbe Stimme (de-DE-FlorianMultilingualNeural), die schon bei
+D-ID gut ankam - nur jetzt direkt über Azure, ohne D-ID/Brandon als
+Zwischenstation. Echte deutsche Neural-Stimme (anders als OpenAIs TTS,
+die nur automatisch Sprache erkennt, aber primär für Englisch optimiert
+ist).
+
+Azure-Doku: https://learn.microsoft.com/azure/ai-services/speech-service/rest-text-to-speech
 """
 
+import os
 import json
 import subprocess
-from openai import OpenAI
-import os
+import requests
 
-client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+AZURE_SPEECH_KEY = os.environ["AZURE_SPEECH_KEY"]
+AZURE_SPEECH_REGION = os.environ["AZURE_SPEECH_REGION"]
 
-STIMME = "onyx"  # ruhige, männliche Stimme
+STIMME = "de-DE-FlorianMultilingualNeural"
+TTS_URL = f"https://{AZURE_SPEECH_REGION}.tts.speech.microsoft.com/cognitiveservices/v1"
 
 
 def vollstaendigen_text_erstellen(daten: dict) -> str:
@@ -23,13 +29,35 @@ def vollstaendigen_text_erstellen(daten: dict) -> str:
     return " ".join(t.strip() for t in teile)
 
 
-def voiceover_generieren(text: str, ziel_pfad: str):
-    response = client.audio.speech.create(
-        model="gpt-4o-mini-tts",
-        voice=STIMME,
-        input=text,
+def escape_fuer_ssml(text: str) -> str:
+    return (
+        text.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
     )
-    response.stream_to_file(ziel_pfad)
+
+
+def voiceover_generieren(text: str, ziel_pfad: str):
+    ssml = (
+        f'<speak version="1.0" xml:lang="de-DE">'
+        f'<voice xml:lang="de-DE" name="{STIMME}">'
+        f'{escape_fuer_ssml(text)}'
+        f'</voice></speak>'
+    )
+    headers = {
+        "Ocp-Apim-Subscription-Key": AZURE_SPEECH_KEY,
+        "Content-Type": "application/ssml+xml",
+        "X-Microsoft-OutputFormat": "audio-24khz-96kbitrate-mono-mp3",
+        "User-Agent": "tiktok-agent",
+    }
+    r = requests.post(TTS_URL, headers=headers, data=ssml.encode("utf-8"))
+    if not r.ok:
+        print(f"Azure TTS Antwort (Status {r.status_code}): {r.text}")
+    r.raise_for_status()
+
+    os.makedirs(os.path.dirname(ziel_pfad), exist_ok=True)
+    with open(ziel_pfad, "wb") as f:
+        f.write(r.content)
 
 
 def audio_dauer_ermitteln(pfad: str) -> float:
@@ -48,10 +76,8 @@ def main():
     with open("pending_script.json", encoding="utf-8") as f:
         daten = json.load(f)
 
-    os.makedirs("output", exist_ok=True)
-
     text = vollstaendigen_text_erstellen(daten)
-    print("Generiere Voiceover für das komplette Skript (OpenAI TTS)...")
+    print("Generiere Voiceover für das komplette Skript (Azure TTS, Florian)...")
     voiceover_generieren(text, "output/voiceover_full.mp3")
 
     dauer = audio_dauer_ermitteln("output/voiceover_full.mp3")
