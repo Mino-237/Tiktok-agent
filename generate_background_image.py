@@ -3,20 +3,20 @@ Erzeugt den Hintergrund: PRO SKRIPT-ABSCHNITT wird ein eigenes,
 thematisch passendes KI-Bild generiert (GPT Image 2) - im Stil einer
 minimalistischen, illustrierten Erklär-Video-Figur (kein Foto-Realismus).
 
-WICHTIGE ÄNDERUNG: Der "Kern"-Abschnitt (Phänomen + Erklärung) enthält
-deutlich mehr Wörter als Hook und CTA und bekam dadurch fast die
-komplette Bildschirmzeit ab - das Video wirkte optisch "eingefroren".
-Deshalb wird der Kern jetzt automatisch anhand seiner Sätze in 2
-Teilbilder aufgeteilt (KERN_TEILE), sodass insgesamt 4 statt 3 Bilder
-pro Video entstehen: Hook, Kern-Teil 1, Kern-Teil 2, CTA. Mehr
-Bildwechsel = lebendigeres Video, besonders in der Mitte.
+Der "Kern"-Abschnitt wird automatisch anhand seiner Sätze in mehrere
+Teilbilder aufgeteilt (KERN_TEILE_ANZAHL), damit im textreichsten Teil
+mehr Bildwechsel passieren, statt dass ein einziges Bild fast die ganze
+Videolänge stehen bleibt.
 
-Die 4 Bilder werden nacheinander mit sanftem Zoom (Ken-Burns-Effekt) zu
-einem einzigen Hintergrund-Video zusammengesetzt.
+NEU - ZOOM-PUNCH BEIM HOOK: Das allererste Bild (Hook) bekommt einen
+schnellen, auffälligen Zoom-Punch in den ersten ~0,7 Sekunden (statt des
+gewohnten sanften Ken-Burns-Zooms), um einen stärkeren "Scroll-Stopp"-
+Moment zu erzeugen. Danach geht der Zoom nahtlos in den normalen,
+sanften Zoom über. Alle anderen Abschnitte behalten den gewohnten
+sanften Zoom.
 
-KOSTEN-HINWEIS: 4 Bilder statt vorher 3 pro Video (~$0,16 statt ~$0,12
-pro Video bei Medium-Qualität) - kleiner Aufpreis für spürbar mehr
-visuelle Abwechslung.
+Die Bilder werden nacheinander mit Zoom-Effekt zu einem einzigen
+Hintergrund-Video zusammengesetzt.
 """
 
 import os
@@ -31,8 +31,12 @@ client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
 BREITE, HOEHE = 1080, 1920
 FPS = 30
-MINDEST_DAUER_PRO_ABSCHNITT = 3.5  # Sekunden - jetzt 4 statt 3 Abschnitte, also etwas kleinerer Mindestwert
+MINDEST_DAUER_PRO_ABSCHNITT = 3.5  # Sekunden
 KERN_TEILE_ANZAHL = 2  # in wie viele Teilbilder der "Kern"-Abschnitt aufgeteilt wird
+
+# Zoom-Punch-Einstellungen für den Hook (erstes Bild)
+PUNCH_DAUER_FRAMES = 20  # ca. 0,67s bei 30 FPS - Dauer des schnellen Zoom-Punches
+PUNCH_ZOOM_ZIEL = 1.28   # wie stark reingezoomt wird, bevor der sanfte Zoom übernimmt
 
 STIL_BESCHREIBUNG = (
     "Flat, modern illustrated digital art style featuring a simple, "
@@ -109,9 +113,25 @@ def abschnitts_dauern_berechnen(abschnitte: list, gesamt_dauer: float) -> list:
     return [max(MINDEST_DAUER_PRO_ABSCHNITT, d) for d in roh_dauern]
 
 
+def zoom_ausdruck_erstellen(ist_hook: bool) -> str:
+    """Baut den zoompan-Zoom-Ausdruck. Der Hook bekommt einen schnellen
+    Zoom-Punch in den ersten PUNCH_DAUER_FRAMES Frames, danach (bzw. bei
+    allen anderen Abschnitten von Anfang an) den gewohnten sanften Zoom."""
+    if ist_hook:
+        punch_rate = (PUNCH_ZOOM_ZIEL - 1) / PUNCH_DAUER_FRAMES
+        return (
+            f"if(lte(on,{PUNCH_DAUER_FRAMES}),"
+            f"1+on*{punch_rate:.5f},"
+            f"min({PUNCH_ZOOM_ZIEL}+(on-{PUNCH_DAUER_FRAMES})*0.0007,1.5))"
+        )
+    return "min(zoom+0.0007,1.15)"
+
+
 def hintergrund_video_erstellen(bild_pfade_und_dauern: list, ziel_pfad: str):
     """Baut aus mehreren Bildern + individuellen Anzeigedauern ein
-    einziges Video mit Ken-Burns-Zoom pro Bild und nahtlosem Übergang."""
+    einziges Video mit Zoom-Effekt pro Bild und nahtlosem Übergang.
+    Das erste Bild (Hook) bekommt einen schnellen Zoom-Punch, alle
+    anderen den gewohnten sanften Ken-Burns-Zoom."""
     inputs = []
     filter_teile = []
 
@@ -122,9 +142,10 @@ def hintergrund_video_erstellen(bild_pfade_und_dauern: list, ziel_pfad: str):
             "-t", str(dauer),
             "-i", bild_pfad,
         ]
+        zoom_ausdruck = zoom_ausdruck_erstellen(ist_hook=(idx == 0))
         filter_teile.append(
             f"[{idx}:v]scale=2160:3840,"
-            f"zoompan=z='min(zoom+0.0007,1.15)':"
+            f"zoompan=z='{zoom_ausdruck}':"
             f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':"
             f"d=1:s={BREITE}x{HOEHE}:fps={FPS},setsar=1[v{idx}]"
         )
@@ -167,7 +188,7 @@ def main():
         bild_generieren(prompt, ziel_pfad)
         bild_pfade_und_dauern.append((ziel_pfad, abschnitt_dauer))
 
-    print(f"Setze Hintergrund-Video aus {len(bild_pfade_und_dauern)} Bildern zusammen (Ken-Burns-Zoom)...")
+    print(f"Setze Hintergrund-Video aus {len(bild_pfade_und_dauern)} Bildern zusammen (Hook mit Zoom-Punch)...")
     hintergrund_video_erstellen(bild_pfade_und_dauern, "output/background.mp4")
 
     print(f"Hintergrund erstellt: {sum(d for _, d in bild_pfade_und_dauern):.1f}s ({len(bild_pfade_und_dauern)} Abschnitte)")
@@ -175,7 +196,6 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 
 
 if __name__ == "__main__":
