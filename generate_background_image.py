@@ -1,20 +1,21 @@
 """
 Erzeugt den Hintergrund: PRO SKRIPT-ABSCHNITT wird ein eigenes,
-thematisch passendes KI-Bild generiert (GPT Image 2) - im Stil einer
-minimalistischen, illustrierten Erklär-Video-Figur (kein Foto-Realismus).
+thematisch passendes KI-Bild generiert (GPT Image 2).
 
 Der "Kern"-Abschnitt wird automatisch anhand seiner Sätze in mehrere
 Teilbilder aufgeteilt (KERN_TEILE_ANZAHL).
 
-HOOK-ZOOM: Das allererste Bild (Hook) bekommt einen längeren, langsamer
-ablaufenden Zoom (statt eines kurzen, schnellen Punches) - der Effekt
-hält dadurch spürbar länger an, wirkt wie ein durchgehendes,
-gleichmäßiges Heranzoomen statt eines kurzen "Rucks".
+HOOK-ZOOM: Das allererste Bild (Hook) bekommt einen längeren,
+langsameren Zoom.
 
 WEICHE ÜBERGÄNGE (CROSSFADE): Die Bilder werden sanft ineinander
-übergeblendet (xfade-Filter, ~0,35s) statt hart geschnitten.
+übergeblendet (xfade-Filter, ~0,35s).
 
-Die Bilder werden zu einem einzigen Hintergrund-Video zusammengesetzt.
+NEU - TIMING FÜR EFFEKT-MOMENT: Der Zeitpunkt, an dem der Kern-Teil
+beginnt (nach dem Hook), wird jetzt zusätzlich in video_meta.json
+gespeichert (Feld "kern_start_zeit"). compose_video.py nutzt das, um
+den Fachbegriff der Folge genau zu diesem Zeitpunkt groß in der
+Bildmitte aufploppen zu lassen ("Effekt-Moment").
 """
 
 import os
@@ -32,13 +33,10 @@ FPS = 30
 MINDEST_DAUER_PRO_ABSCHNITT = 3.5  # Sekunden
 KERN_TEILE_ANZAHL = 2  # in wie viele Teilbilder der "Kern"-Abschnitt aufgeteilt wird
 
-# Hook-Zoom-Einstellungen: längere, langsamere Zoom-Bewegung statt
-# kurzem Punch. PUNCH_DAUER_FRAMES bei 30 FPS: 60 Frames = 2 Sekunden.
-PUNCH_DAUER_FRAMES = 60  # ca. 2s bei 30 FPS - deutlich länger als vorher (war 20 = 0,67s)
-PUNCH_ZOOM_ZIEL = 1.22   # etwas sanfter als vorher (war 1.28), damit es über die längere Zeit ruhiger wirkt
+PUNCH_DAUER_FRAMES = 60  # ca. 2s bei 30 FPS
+PUNCH_ZOOM_ZIEL = 1.22
 
-# Crossfade-Einstellungen für die Übergänge zwischen den Bildern
-CROSSFADE_DAUER = 0.35  # Sekunden - muss kleiner sein als MINDEST_DAUER_PRO_ABSCHNITT
+CROSSFADE_DAUER = 0.35  # Sekunden
 
 STIL_BESCHREIBUNG = (
     "Flat, modern illustrated digital art style featuring a simple, "
@@ -57,8 +55,6 @@ STIL_BESCHREIBUNG = (
 
 
 def kern_in_teile_splitten(kern_text: str, anzahl_teile: int = KERN_TEILE_ANZAHL) -> list:
-    """Teilt den Kern-Text anhand von Satzgrenzen in ungefähr gleich
-    lange Teile auf."""
     saetze = [s.strip() for s in re.split(r'(?<=[.!?])\s+', kern_text.strip()) if s.strip()]
     if len(saetze) <= 1:
         return [kern_text.strip()]
@@ -72,8 +68,6 @@ def kern_in_teile_splitten(kern_text: str, anzahl_teile: int = KERN_TEILE_ANZAHL
 
 
 def abschnitte_erstellen(skript_daten: dict) -> list:
-    """Baut die Liste aller Bild-Abschnitte: Hook, die aufgeteilten
-    Kern-Teile, und CTA - jeweils als (Label, Text)-Paar."""
     abschnitte = [("Hook / einleitende Frage", skript_daten["hook"])]
 
     kern_teile = kern_in_teile_splitten(skript_daten["kern"])
@@ -106,8 +100,6 @@ def bild_generieren(prompt: str, ziel_pfad: str):
 
 
 def abschnitts_dauern_berechnen(abschnitte: list, gesamt_dauer: float) -> list:
-    """Verteilt die verfügbare Gesamtdauer proportional zur Wortanzahl
-    jedes Abschnitts, mit einer Mindestdauer pro Abschnitt."""
     woerter_pro_abschnitt = [len(text.split()) for _, text in abschnitte]
     gesamt_woerter = sum(woerter_pro_abschnitt) or 1
 
@@ -120,8 +112,6 @@ def abschnitts_dauern_berechnen(abschnitte: list, gesamt_dauer: float) -> list:
 
 
 def zoom_ausdruck_erstellen(ist_hook: bool) -> str:
-    """Baut den zoompan-Zoom-Ausdruck. Der Hook bekommt einen längeren,
-    langsameren Zoom, alle anderen den gewohnten sanften Zoom."""
     if ist_hook:
         punch_rate = (PUNCH_ZOOM_ZIEL - 1) / PUNCH_DAUER_FRAMES
         return (
@@ -133,9 +123,6 @@ def zoom_ausdruck_erstellen(ist_hook: bool) -> str:
 
 
 def hintergrund_video_erstellen(bild_pfade_und_dauern: list, ziel_pfad: str):
-    """Baut aus mehreren Bildern + individuellen Anzeigedauern ein
-    einziges Video mit Zoom-Effekt pro Bild UND weichen Crossfade-
-    Übergängen zwischen den Bildern (statt hartem Schnitt)."""
     inputs = []
     filter_teile = []
 
@@ -209,11 +196,19 @@ def main():
         bild_generieren(prompt, ziel_pfad)
         bild_pfade_und_dauern.append((ziel_pfad, abschnitt_dauer))
 
-    print(f"Setze Hintergrund-Video aus {len(bild_pfade_und_dauern)} Bildern zusammen (Crossfade + verlängerter Hook-Zoom)...")
+    print(f"Setze Hintergrund-Video aus {len(bild_pfade_und_dauern)} Bildern zusammen (Crossfade + Hook-Zoom)...")
     hintergrund_video_erstellen(bild_pfade_und_dauern, "output/background.mp4")
 
+    # Zeitpunkt, an dem der Kern-Teil beginnt (= Ende des Hook-Bildes,
+    # abzüglich der Crossfade-Überlappung) - für den Effekt-Moment in
+    # compose_video.py
+    kern_start_zeit = max(0.0, abschnitts_dauern[0] - CROSSFADE_DAUER)
+    meta["kern_start_zeit"] = kern_start_zeit
+    with open("output/video_meta.json", "w", encoding="utf-8") as f:
+        json.dump(meta, f)
+
     gesamt = sum(d for _, d in bild_pfade_und_dauern) - CROSSFADE_DAUER * (len(bild_pfade_und_dauern) - 1)
-    print(f"Hintergrund erstellt: ~{gesamt:.1f}s ({len(bild_pfade_und_dauern)} Abschnitte, {CROSSFADE_DAUER}s Crossfade)")
+    print(f"Hintergrund erstellt: ~{gesamt:.1f}s (Kern startet bei ~{kern_start_zeit:.1f}s)")
 
 
 if __name__ == "__main__":
