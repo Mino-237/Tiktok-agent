@@ -5,21 +5,18 @@ minimalistischen, illustrierten Erklär-Video-Figur (kein Foto-Realismus).
 
 Der "Kern"-Abschnitt wird automatisch anhand seiner Sätze in mehrere
 Teilbilder aufgeteilt (KERN_TEILE_ANZAHL), damit im textreichsten Teil
-mehr Bildwechsel passieren, statt dass ein einziges Bild fast die ganze
-Videolänge stehen bleibt.
+mehr Bildwechsel passieren.
 
 ZOOM-PUNCH BEIM HOOK: Das allererste Bild (Hook) bekommt einen
-schnellen, auffälligen Zoom-Punch in den ersten ~0,7 Sekunden, um einen
-stärkeren "Scroll-Stopp"-Moment zu erzeugen. Danach geht der Zoom
-nahtlos in den normalen, sanften Zoom über.
+schnellen Zoom-Punch in den ersten ~0,7 Sekunden für einen stärkeren
+"Scroll-Stopp"-Moment.
 
-NEU - GESCHÄRFTER PROMPT: Gelegentlich generierte GPT Image 2 verwirrende,
-"schwebende" Bildelemente (z.B. losgelöste Kopf-Silhouetten ohne klaren
-Bezug zur Szene). Der Prompt enthält jetzt eine explizite Anweisung,
-solche kompositorisch unklaren Elemente zu vermeiden.
+NEU - WEICHE ÜBERGÄNGE (CROSSFADE): Statt harter Bildschnitte zwischen
+den Abschnitten werden die Bilder jetzt sanft ineinander übergeblendet
+(xfade-Filter, ~0,35s Überblendzeit). Wirkt deutlich flüssiger/
+professioneller als der bisherige harte Schnitt.
 
-Die Bilder werden nacheinander mit Zoom-Effekt zu einem einzigen
-Hintergrund-Video zusammengesetzt.
+Die Bilder werden zu einem einzigen Hintergrund-Video zusammengesetzt.
 """
 
 import os
@@ -38,8 +35,11 @@ MINDEST_DAUER_PRO_ABSCHNITT = 3.5  # Sekunden
 KERN_TEILE_ANZAHL = 2  # in wie viele Teilbilder der "Kern"-Abschnitt aufgeteilt wird
 
 # Zoom-Punch-Einstellungen für den Hook (erstes Bild)
-PUNCH_DAUER_FRAMES = 20  # ca. 0,67s bei 30 FPS - Dauer des schnellen Zoom-Punches
-PUNCH_ZOOM_ZIEL = 1.28   # wie stark reingezoomt wird, bevor der sanfte Zoom übernimmt
+PUNCH_DAUER_FRAMES = 20  # ca. 0,67s bei 30 FPS
+PUNCH_ZOOM_ZIEL = 1.28
+
+# Crossfade-Einstellungen für die Übergänge zwischen den Bildern
+CROSSFADE_DAUER = 0.35  # Sekunden - muss kleiner sein als MINDEST_DAUER_PRO_ABSCHNITT
 
 STIL_BESCHREIBUNG = (
     "Flat, modern illustrated digital art style featuring a simple, "
@@ -59,8 +59,7 @@ STIL_BESCHREIBUNG = (
 
 def kern_in_teile_splitten(kern_text: str, anzahl_teile: int = KERN_TEILE_ANZAHL) -> list:
     """Teilt den Kern-Text anhand von Satzgrenzen in ungefähr gleich
-    lange Teile auf. Falls zu wenige Sätze vorhanden sind, wird der Text
-    unverändert als ein einziges Teil zurückgegeben."""
+    lange Teile auf."""
     saetze = [s.strip() for s in re.split(r'(?<=[.!?])\s+', kern_text.strip()) if s.strip()]
     if len(saetze) <= 1:
         return [kern_text.strip()]
@@ -123,8 +122,7 @@ def abschnitts_dauern_berechnen(abschnitte: list, gesamt_dauer: float) -> list:
 
 def zoom_ausdruck_erstellen(ist_hook: bool) -> str:
     """Baut den zoompan-Zoom-Ausdruck. Der Hook bekommt einen schnellen
-    Zoom-Punch in den ersten PUNCH_DAUER_FRAMES Frames, danach (bzw. bei
-    allen anderen Abschnitten von Anfang an) den gewohnten sanften Zoom."""
+    Zoom-Punch, alle anderen den gewohnten sanften Zoom."""
     if ist_hook:
         punch_rate = (PUNCH_ZOOM_ZIEL - 1) / PUNCH_DAUER_FRAMES
         return (
@@ -137,9 +135,8 @@ def zoom_ausdruck_erstellen(ist_hook: bool) -> str:
 
 def hintergrund_video_erstellen(bild_pfade_und_dauern: list, ziel_pfad: str):
     """Baut aus mehreren Bildern + individuellen Anzeigedauern ein
-    einziges Video mit Zoom-Effekt pro Bild und nahtlosem Übergang.
-    Das erste Bild (Hook) bekommt einen schnellen Zoom-Punch, alle
-    anderen den gewohnten sanften Ken-Burns-Zoom."""
+    einziges Video mit Zoom-Effekt pro Bild UND weichen Crossfade-
+    Übergängen zwischen den Bildern (statt hartem Schnitt)."""
     inputs = []
     filter_teile = []
 
@@ -155,20 +152,37 @@ def hintergrund_video_erstellen(bild_pfade_und_dauern: list, ziel_pfad: str):
             f"[{idx}:v]scale=2160:3840,"
             f"zoompan=z='{zoom_ausdruck}':"
             f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':"
-            f"d=1:s={BREITE}x{HOEHE}:fps={FPS},setsar=1[v{idx}]"
+            f"d=1:s={BREITE}x{HOEHE}:fps={FPS},setsar=1,format=yuv420p[v{idx}]"
         )
 
-    concat_eingaenge = "".join(f"[v{idx}]" for idx in range(len(bild_pfade_und_dauern)))
-    filter_complex = (
-        ";".join(filter_teile)
-        + f";{concat_eingaenge}concat=n={len(bild_pfade_und_dauern)}:v=1:a=0[vout]"
-    )
+    if len(bild_pfade_und_dauern) == 1:
+        finaler_output = "[v0]"
+    else:
+        xfade_teile = []
+        aktuelles_label = "v0"
+        kumulierte_dauer = bild_pfade_und_dauern[0][1]
+
+        for i in range(1, len(bild_pfade_und_dauern)):
+            naechste_dauer = bild_pfade_und_dauern[i][1]
+            offset = max(0.0, kumulierte_dauer - CROSSFADE_DAUER)
+            neues_label = f"vx{i}"
+            xfade_teile.append(
+                f"[{aktuelles_label}][v{i}]xfade=transition=fade:"
+                f"duration={CROSSFADE_DAUER}:offset={offset:.3f}[{neues_label}]"
+            )
+            kumulierte_dauer = kumulierte_dauer - CROSSFADE_DAUER + naechste_dauer
+            aktuelles_label = neues_label
+
+        filter_teile.append(";".join(xfade_teile))
+        finaler_output = f"[{aktuelles_label}]"
+
+    filter_complex = ";".join(filter_teile)
 
     befehl = [
         "ffmpeg", "-y",
         *inputs,
         "-filter_complex", filter_complex,
-        "-map", "[vout]",
+        "-map", finaler_output,
         "-c:v", "libx264", "-pix_fmt", "yuv420p",
         "-preset", "veryfast",
         ziel_pfad,
@@ -196,10 +210,11 @@ def main():
         bild_generieren(prompt, ziel_pfad)
         bild_pfade_und_dauern.append((ziel_pfad, abschnitt_dauer))
 
-    print(f"Setze Hintergrund-Video aus {len(bild_pfade_und_dauern)} Bildern zusammen (Hook mit Zoom-Punch)...")
+    print(f"Setze Hintergrund-Video aus {len(bild_pfade_und_dauern)} Bildern zusammen (Crossfade + Hook-Zoom-Punch)...")
     hintergrund_video_erstellen(bild_pfade_und_dauern, "output/background.mp4")
 
-    print(f"Hintergrund erstellt: {sum(d for _, d in bild_pfade_und_dauern):.1f}s ({len(bild_pfade_und_dauern)} Abschnitte)")
+    gesamt = sum(d for _, d in bild_pfade_und_dauern) - CROSSFADE_DAUER * (len(bild_pfade_und_dauern) - 1)
+    print(f"Hintergrund erstellt: ~{gesamt:.1f}s ({len(bild_pfade_und_dauern)} Abschnitte, {CROSSFADE_DAUER}s Crossfade)")
 
 
 if __name__ == "__main__":
