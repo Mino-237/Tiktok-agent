@@ -8,12 +8,15 @@ Teilbilder aufgeteilt (KERN_TEILE_ANZAHL), damit im textreichsten Teil
 mehr Bildwechsel passieren, statt dass ein einziges Bild fast die ganze
 Videolänge stehen bleibt.
 
-NEU - ZOOM-PUNCH BEIM HOOK: Das allererste Bild (Hook) bekommt einen
-schnellen, auffälligen Zoom-Punch in den ersten ~0,7 Sekunden (statt des
-gewohnten sanften Ken-Burns-Zooms), um einen stärkeren "Scroll-Stopp"-
-Moment zu erzeugen. Danach geht der Zoom nahtlos in den normalen,
-sanften Zoom über. Alle anderen Abschnitte behalten den gewohnten
-sanften Zoom.
+ZOOM-PUNCH BEIM HOOK: Das allererste Bild (Hook) bekommt einen
+schnellen, auffälligen Zoom-Punch in den ersten ~0,7 Sekunden, um einen
+stärkeren "Scroll-Stopp"-Moment zu erzeugen. Danach geht der Zoom
+nahtlos in den normalen, sanften Zoom über.
+
+NEU - GESCHÄRFTER PROMPT: Gelegentlich generierte GPT Image 2 verwirrende,
+"schwebende" Bildelemente (z.B. losgelöste Kopf-Silhouetten ohne klaren
+Bezug zur Szene). Der Prompt enthält jetzt eine explizite Anweisung,
+solche kompositorisch unklaren Elemente zu vermeiden.
 
 Die Bilder werden nacheinander mit Zoom-Effekt zu einem einzigen
 Hintergrund-Video zusammengesetzt.
@@ -45,7 +48,12 @@ STIL_BESCHREIBUNG = (
     "soft glowing light, dreamlike and symbolic atmosphere, no text, no "
     "words, no letters, no logos, vertical portrait composition. "
     "Consistent, cohesive art style matching the rest of an illustration "
-    "series for the same short video."
+    "series for the same short video. "
+    "IMPORTANT COMPOSITION RULE: Every character or silhouette in the "
+    "image must be clearly grounded and connected to the scene - NO "
+    "floating, disembodied heads or silhouettes without a visible body "
+    "or clear compositional purpose. Keep the composition clean, "
+    "uncluttered and easy to read at a glance."
 )
 
 
@@ -196,7 +204,6 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 
 if __name__ == "__main__":
     main()
