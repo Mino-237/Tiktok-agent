@@ -3,16 +3,14 @@ Generiert täglich (mehrmals täglich, manuell gestartet) ein Thema +
 Kurz-Skript für die Serie "Warum tun wir das?". Nutzt die Anthropic API
 (Claude), um einen Rohentwurf zu erstellen.
 
+NEU - FOLGEN-ZÄHLER: Jedes Skript bekommt eine fortlaufende Folgen-
+Nummer (video_zaehler.json), die NIE zurückgesetzt wird (anders als
+die Themen-Historie, die bei einem neuen Zyklus geleert wird). Wird im
+Video als kleines "Fakt #N"-Badge angezeigt (siehe compose_video.py) -
+motiviert zum Folgen, um keine Folge zu verpassen.
+
 WACHSTUMSPHASE-FORMAT: Verschlanktes 3-Teile-Format (Hook/Kern/CTA) für
 20-30 Sekunden Videos.
-
-CTA-AUFBAU: Kurzer Übergangssatz + Like-und-Folgen-Einladung (angelehnt
-an den festen Wortlaut "Lass doch gerne ein Like da und folge mir für
-mehr Psychologie-Wissen") - KEINE separate Kommentar-Aufforderung mehr.
-
-Das Skript ist bewusst NICHT vollautomatisch final - der Sinn ist,
-dass du (oder ein kurzer manueller Review-Schritt) den Text noch
-mit eigener Meinung/Formulierung anreicherst, bevor er ins Video geht.
 """
 
 import os
@@ -50,6 +48,7 @@ KANAL_NISCHE = "Alltagspsychologie - kognitive Verzerrungen, Gewohnheiten und so
 
 THEMEN_POOL_DATEI = "themen_pool.json"
 THEMEN_HISTORIE_DATEI = "themen_historie.json"
+ZAEHLER_DATEI = "video_zaehler.json"  # fortlaufend, wird NIE zurückgesetzt
 
 MINDEST_PUFFER = 8
 NEUE_THEMEN_PRO_NACHSCHUB = 20
@@ -70,8 +69,7 @@ STRUKTUR (immer einhalten, nur 3 Teile - Zeit ist knapp!):
       z.B. "Ziemlich verrückt, oder?" (abwechslungsreich, nicht immer gleich)
    b) Eine Like-und-Folgen-Einladung, angelehnt an genau diesen Wortlaut:
       "Lass doch gerne ein Like da und folge mir für mehr Psychologie-
-      Wissen." Der Wortlaut darf leicht variiert werden (z.B. "für mehr
-      Fakten wie diesen" statt "für mehr Psychologie-Wissen"), aber die
+      Wissen." Der Wortlaut darf leicht variiert werden, aber die
       Grundstruktur "Like da lassen" + "folge mir für mehr..." muss
       erhalten bleiben. KEINE separate Aufforderung zum Kommentieren.
 
@@ -127,6 +125,23 @@ def generiere_skript(thema: str) -> dict:
         f"Konnte nach {MAX_GENERIERUNGS_VERSUCHE} Versuchen kein Skript mit "
         f"mindestens {MINDEST_WOERTER} Wörtern generieren. Bitte manuell prüfen."
     )
+
+
+def naechste_folgen_nummer() -> int:
+    """Liest den aktuellen Zählerstand, erhöht ihn um 1 und speichert
+    ihn zurück. Wird NIE zurückgesetzt (anders als die Themen-Historie),
+    damit die Folgen-Nummer im Video immer weiterzählt."""
+    if os.path.exists(ZAEHLER_DATEI):
+        with open(ZAEHLER_DATEI, encoding="utf-8") as f:
+            zaehler_daten = json.load(f)
+        nummer = zaehler_daten.get("anzahl", 0) + 1
+    else:
+        nummer = 1
+
+    with open(ZAEHLER_DATEI, "w", encoding="utf-8") as f:
+        json.dump({"anzahl": nummer}, f)
+
+    return nummer
 
 
 def pool_laden() -> list:
@@ -205,12 +220,13 @@ def main():
     daten = generiere_skript(thema)
     daten["thema_original"] = thema
     daten["datum"] = datetime.now().strftime("%Y-%m-%d")
+    daten["folge_nummer"] = naechste_folgen_nummer()
 
     ausgabe_pfad = "pending_script.json"
     with open(ausgabe_pfad, "w", encoding="utf-8") as f:
         json.dump(daten, f, ensure_ascii=False, indent=2)
 
-    print(f"Skript erstellt: {daten['titel']}")
+    print(f"Skript erstellt: {daten['titel']} (Folge #{daten['folge_nummer']})")
     print(f"Gespeichert unter: {ausgabe_pfad}")
 
 
