@@ -3,12 +3,17 @@ Generiert täglich (mehrmals täglich, manuell gestartet) ein Thema +
 Kurz-Skript für die Serie "Warum tun wir das?". Nutzt die Anthropic API
 (Claude), um einen Rohentwurf zu erstellen.
 
-WACHSTUMSPHASE-FORMAT: Statt der ursprünglichen 5-Teile-Struktur (für
-60-90s Videos, wichtig für TikTok Creator Rewards) nutzen wir aktuell
-ein verschlanktes 3-Teile-Format (Hook/Kern/CTA) für 20-30 Sekunden
-Videos. Grund: In der Wachstumsphase (Ziel: 10.000 Follower) zählt vor
-allem Postfrequenz und Completion Rate, nicht die 60s-Mindestlänge für
-Creator Rewards - die brauchen wir erst später wieder.
+WACHSTUMSPHASE-FORMAT: Verschlanktes 3-Teile-Format (Hook/Kern/CTA) für
+20-30 Sekunden Videos. Grund: In der Wachstumsphase (Ziel: 10.000
+Follower) zählt vor allem Postfrequenz und Completion Rate, nicht die
+60s-Mindestlänge für Creator Rewards - die brauchen wir erst später
+wieder.
+
+NEU - SANFTERER CTA-ÜBERGANG: Der CTA sprang bisher direkt vom
+inhaltlichen Ende zu "Like + Kommentar", was wie ein abrupter
+Themenwechsel wirkte. Jetzt enthält der CTA zuerst einen KURZEN
+Übergangssatz (Reaktion/Fazit zum Thema), bevor die eigentliche
+Like-/Kommentar-Einladung kommt - fühlt sich runder an.
 
 Das Skript ist bewusst NICHT vollautomatisch final - der Sinn ist,
 dass du (oder ein kurzer manueller Review-Schritt) den Text noch
@@ -80,7 +85,13 @@ STRUKTUR (immer einhalten, nur 3 Teile - Zeit ist knapp!):
 1. HOOK: Eine provokante Frage direkt an den Zuschauer (1 kurzer Satz)
 2. KERN: Das psychologische Phänomen benennen UND in einem Fluss erklären,
    warum es passiert - kompakt, ohne ausführliches Beispiel (3-4 Sätze)
-3. CTA: Ein kurzer Satz, der zuerst zum Liken UND dann zum Kommentieren einlädt (z.B. "Lass gerne ein Like da, wenn dir das gefallen hat, und schreib's in die Kommentare")
+3. CTA: Besteht aus ZWEI Teilen, die sich natürlich aneinanderreihen:
+   a) Ein KURZER Übergangssatz (3-5 Wörter) - eine Reaktion oder ein Fazit
+      zum gerade Erklärten, z.B. "Ziemlich verrückt, oder?" oder "Krass,
+      wie unser Kopf tickt." Das verhindert einen abrupten Themenwechsel.
+   b) DANACH die eigentliche Einladung zum Liken UND Kommentieren, z.B.
+      "Lass gerne ein Like da, wenn dir das gefallen hat, und schreib's
+      in die Kommentare."
 
 WICHTIG:
 - Einfache, gesprochene Sprache, keine Fachbegriffe ohne Erklärung
@@ -88,6 +99,8 @@ WICHTIG:
   Sekunden Sprechzeit). Diese Mindestanzahl ist eine HARTE Vorgabe.
 - KEIN ausführliches Alltagsbeispiel - dafür ist bei dieser Kürze keine
   Zeit. Der "Aha-Moment" muss direkt im KERN stecken.
+- Der Übergangssatz im CTA muss inhaltlich zum jeweiligen Thema passen,
+  nicht immer dieselbe Floskel wiederholen - abwechslungsreich bleiben.
 - Antworte NUR mit validem JSON, keine Markdown-Codeblöcke, kein Vorspann.
 
 Format:
@@ -95,7 +108,7 @@ Format:
   "titel": "kurzer Arbeitstitel",
   "hook": "...",
   "kern": "...",
-  "cta": "...",
+  "cta": "... (Übergangssatz + Like-/Kommentar-Einladung zusammen als ein Feld)",
   "vollstaendiges_skript": "Der komplette Text am Stück, so wie er gesprochen werden soll"
 }
 """
@@ -230,6 +243,10 @@ def main():
 
     print(f"Skript erstellt: {daten['titel']}")
     print(f"Gespeichert unter: {ausgabe_pfad}")
+
+
+if __name__ == "__main__":
+    main()
 
 
 if __name__ == "__main__":
