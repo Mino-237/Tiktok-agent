@@ -80,7 +80,7 @@ STRUKTUR (immer einhalten, nur 3 Teile - Zeit ist knapp!):
 1. HOOK: Eine provokante Frage direkt an den Zuschauer (1 kurzer Satz)
 2. KERN: Das psychologische Phänomen benennen UND in einem Fluss erklären,
    warum es passiert - kompakt, ohne ausführliches Beispiel (3-4 Sätze)
-3. CTA: Ein kurzer Satz, der zum Liken einlädt (z.B. "Lass gerne ein Like da, wenn dir das Video gefallen hat"), NICHT zum Kommentieren
+3. CTA: Ein kurzer Satz, der zuerst zum Liken UND dann zum Kommentieren einlädt (z.B. "Lass gerne ein Like da, wenn dir das gefallen hat, und schreib's in die Kommentare")
 
 WICHTIG:
 - Einfache, gesprochene Sprache, keine Fachbegriffe ohne Erklärung
