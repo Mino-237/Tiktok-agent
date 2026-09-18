@@ -4,17 +4,15 @@ thematisch passendes KI-Bild generiert (GPT Image 2) - im Stil einer
 minimalistischen, illustrierten Erklär-Video-Figur (kein Foto-Realismus).
 
 Der "Kern"-Abschnitt wird automatisch anhand seiner Sätze in mehrere
-Teilbilder aufgeteilt (KERN_TEILE_ANZAHL), damit im textreichsten Teil
-mehr Bildwechsel passieren.
+Teilbilder aufgeteilt (KERN_TEILE_ANZAHL).
 
-ZOOM-PUNCH BEIM HOOK: Das allererste Bild (Hook) bekommt einen
-schnellen Zoom-Punch in den ersten ~0,7 Sekunden für einen stärkeren
-"Scroll-Stopp"-Moment.
+HOOK-ZOOM: Das allererste Bild (Hook) bekommt einen längeren, langsamer
+ablaufenden Zoom (statt eines kurzen, schnellen Punches) - der Effekt
+hält dadurch spürbar länger an, wirkt wie ein durchgehendes,
+gleichmäßiges Heranzoomen statt eines kurzen "Rucks".
 
-NEU - WEICHE ÜBERGÄNGE (CROSSFADE): Statt harter Bildschnitte zwischen
-den Abschnitten werden die Bilder jetzt sanft ineinander übergeblendet
-(xfade-Filter, ~0,35s Überblendzeit). Wirkt deutlich flüssiger/
-professioneller als der bisherige harte Schnitt.
+WEICHE ÜBERGÄNGE (CROSSFADE): Die Bilder werden sanft ineinander
+übergeblendet (xfade-Filter, ~0,35s) statt hart geschnitten.
 
 Die Bilder werden zu einem einzigen Hintergrund-Video zusammengesetzt.
 """
@@ -34,9 +32,10 @@ FPS = 30
 MINDEST_DAUER_PRO_ABSCHNITT = 3.5  # Sekunden
 KERN_TEILE_ANZAHL = 2  # in wie viele Teilbilder der "Kern"-Abschnitt aufgeteilt wird
 
-# Zoom-Punch-Einstellungen für den Hook (erstes Bild)
-PUNCH_DAUER_FRAMES = 20  # ca. 0,67s bei 30 FPS
-PUNCH_ZOOM_ZIEL = 1.28
+# Hook-Zoom-Einstellungen: längere, langsamere Zoom-Bewegung statt
+# kurzem Punch. PUNCH_DAUER_FRAMES bei 30 FPS: 60 Frames = 2 Sekunden.
+PUNCH_DAUER_FRAMES = 60  # ca. 2s bei 30 FPS - deutlich länger als vorher (war 20 = 0,67s)
+PUNCH_ZOOM_ZIEL = 1.22   # etwas sanfter als vorher (war 1.28), damit es über die längere Zeit ruhiger wirkt
 
 # Crossfade-Einstellungen für die Übergänge zwischen den Bildern
 CROSSFADE_DAUER = 0.35  # Sekunden - muss kleiner sein als MINDEST_DAUER_PRO_ABSCHNITT
@@ -121,8 +120,8 @@ def abschnitts_dauern_berechnen(abschnitte: list, gesamt_dauer: float) -> list:
 
 
 def zoom_ausdruck_erstellen(ist_hook: bool) -> str:
-    """Baut den zoompan-Zoom-Ausdruck. Der Hook bekommt einen schnellen
-    Zoom-Punch, alle anderen den gewohnten sanften Zoom."""
+    """Baut den zoompan-Zoom-Ausdruck. Der Hook bekommt einen längeren,
+    langsameren Zoom, alle anderen den gewohnten sanften Zoom."""
     if ist_hook:
         punch_rate = (PUNCH_ZOOM_ZIEL - 1) / PUNCH_DAUER_FRAMES
         return (
@@ -210,7 +209,7 @@ def main():
         bild_generieren(prompt, ziel_pfad)
         bild_pfade_und_dauern.append((ziel_pfad, abschnitt_dauer))
 
-    print(f"Setze Hintergrund-Video aus {len(bild_pfade_und_dauern)} Bildern zusammen (Crossfade + Hook-Zoom-Punch)...")
+    print(f"Setze Hintergrund-Video aus {len(bild_pfade_und_dauern)} Bildern zusammen (Crossfade + verlängerter Hook-Zoom)...")
     hintergrund_video_erstellen(bild_pfade_und_dauern, "output/background.mp4")
 
     gesamt = sum(d for _, d in bild_pfade_und_dauern) - CROSSFADE_DAUER * (len(bild_pfade_und_dauern) - 1)
@@ -219,6 +218,5 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 if __name__ == "__main__":
     main()
