@@ -4,21 +4,17 @@ Kurz-Skript für die Serie "Warum tun wir das?". Nutzt die Anthropic API
 (Claude), um einen Rohentwurf zu erstellen.
 
 WACHSTUMSPHASE-FORMAT: Verschlanktes 3-Teile-Format (Hook/Kern/CTA) für
-20-30 Sekunden Videos. Grund: In der Wachstumsphase (Ziel: 10.000
-Follower) zählt vor allem Postfrequenz und Completion Rate, nicht die
-60s-Mindestlänge für Creator Rewards - die brauchen wir erst später
-wieder.
+20-30 Sekunden Videos.
 
-NEU - SANFTERER CTA-ÜBERGANG: Der CTA sprang bisher direkt vom
-inhaltlichen Ende zu "Like + Kommentar", was wie ein abrupter
-Themenwechsel wirkte. Jetzt enthält der CTA zuerst einen KURZEN
-Übergangssatz (Reaktion/Fazit zum Thema), bevor die eigentliche
-Like-/Kommentar-Einladung kommt - fühlt sich runder an.
+CTA-AUFBAU: Der CTA besteht jetzt aus drei kurzen Teilen: 1) ein knapper
+Übergangssatz (verhindert abrupten Themenwechsel), 2) Like+Kommentar-
+Einladung, 3) ein kurzer "Folge für mehr"-Hinweis - wichtig für das
+Follower-Wachstumsziel. Dadurch ist der CTA etwas länger geworden, die
+Wortzahl-Obergrenze wurde entsprechend leicht angehoben.
 
 Das Skript ist bewusst NICHT vollautomatisch final - der Sinn ist,
 dass du (oder ein kurzer manueller Review-Schritt) den Text noch
 mit eigener Meinung/Formulierung anreicherst, bevor er ins Video geht.
-Das hilft auch dabei, nicht als "reiner KI-Recycling-Content" zu gelten.
 """
 
 import os
@@ -29,10 +25,6 @@ from anthropic import Anthropic
 
 client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
-# Startpunkt-Themenpool. Wird bei Bedarf AUTOMATISCH um neue Themen
-# erweitert (siehe pool_bei_bedarf_erweitern() weiter unten) - du musst
-# hier nichts nachpflegen. Diese Liste ist nur der Anfang, damit der
-# Kanal von Tag 1 an Varianz hat.
 THEMEN_POOL_START = [
     "Warum du dir selbst öfter etwas vormachst als anderen (Selbsttäuschung)",
     "Warum wir Dinge aufschieben, obwohl wir wissen, dass es uns schadet (Prokrastination)",
@@ -56,24 +48,16 @@ THEMEN_POOL_START = [
     "Warum wir bei Multitasking eigentlich langsamer werden (Aufmerksamkeitsrestpartikel)",
 ]
 
-# Diese Beschreibung wird genutzt, wenn Claude automatisch NEUE Themen
-# nachgeneriert - passt die "Handschrift" des Kanals an, falls du die
-# Nische änderst (z.B. auf Finanzen oder Geschichte statt Psychologie).
 KANAL_NISCHE = "Alltagspsychologie - kognitive Verzerrungen, Gewohnheiten und soziale Dynamiken, die erklären, warum Menschen sich so verhalten, wie sie es tun"
 
-# Dateien, in denen der wachsende Themenpool und die Nutzungs-Historie
-# gespeichert werden. Beide werden vom GitHub-Actions-Workflow nach
-# jedem Lauf automatisch zurück ins Repository committed.
 THEMEN_POOL_DATEI = "themen_pool.json"
 THEMEN_HISTORIE_DATEI = "themen_historie.json"
 
-# Sobald weniger als so viele unbenutzte Themen übrig sind, generiert
-# Claude automatisch neue nach - dadurch geht dem Kanal nie der Stoff aus.
 MINDEST_PUFFER = 8
 NEUE_THEMEN_PRO_NACHSCHUB = 20
 
-# Ziel: 20-30 Sekunden Sprechzeit. Bei ca. 2,3-2,5 Wörtern/Sekunde
-# entspricht das ungefähr 55-75 Wörtern.
+# Ziel: 20-30 Sekunden Sprechzeit. CTA ist durch den Folge-Hinweis etwas
+# länger geworden, deshalb die Zielspanne leicht nach oben angepasst.
 MINDEST_WOERTER = 55
 MAX_GENERIERUNGS_VERSUCHE = 3
 
@@ -85,22 +69,22 @@ STRUKTUR (immer einhalten, nur 3 Teile - Zeit ist knapp!):
 1. HOOK: Eine provokante Frage direkt an den Zuschauer (1 kurzer Satz)
 2. KERN: Das psychologische Phänomen benennen UND in einem Fluss erklären,
    warum es passiert - kompakt, ohne ausführliches Beispiel (3-4 Sätze)
-3. CTA: Besteht aus ZWEI Teilen, die sich natürlich aneinanderreihen:
-   a) Ein KURZER Übergangssatz (3-5 Wörter) - eine Reaktion oder ein Fazit
-      zum gerade Erklärten, z.B. "Ziemlich verrückt, oder?" oder "Krass,
-      wie unser Kopf tickt." Das verhindert einen abrupten Themenwechsel.
-   b) DANACH die eigentliche Einladung zum Liken UND Kommentieren, z.B.
-      "Lass gerne ein Like da, wenn dir das gefallen hat, und schreib's
-      in die Kommentare."
+3. CTA: Besteht aus DREI kurzen Teilen, die sich natürlich aneinanderreihen:
+   a) Ein KURZER Übergangssatz (3-5 Wörter) - Reaktion/Fazit zum Thema,
+      z.B. "Ziemlich verrückt, oder?" (abwechslungsreich, nicht immer gleich)
+   b) Like- und Kommentar-Einladung, z.B. "Lass gerne ein Like da, wenn
+      dir das gefallen hat, und schreib's in die Kommentare"
+   c) Ein KURZER Folge-Hinweis (4-6 Wörter), z.B. "Folg mir für mehr
+      solcher Fakten" oder "Folg für mehr Psychologie-Wissen"
 
 WICHTIG:
 - Einfache, gesprochene Sprache, keine Fachbegriffe ohne Erklärung
-- Insgesamt MINDESTENS 55 Wörter, gerne bis 75 Wörter (für ~20-30
+- Insgesamt MINDESTENS 55 Wörter, gerne bis 85 Wörter (für ~20-32
   Sekunden Sprechzeit). Diese Mindestanzahl ist eine HARTE Vorgabe.
 - KEIN ausführliches Alltagsbeispiel - dafür ist bei dieser Kürze keine
   Zeit. Der "Aha-Moment" muss direkt im KERN stecken.
-- Der Übergangssatz im CTA muss inhaltlich zum jeweiligen Thema passen,
-  nicht immer dieselbe Floskel wiederholen - abwechslungsreich bleiben.
+- Alle drei CTA-Teile MÜSSEN zusammen möglichst knapp bleiben (insgesamt
+  nicht mehr als ca. 25 Wörter), damit genug Zeit für den Kern-Inhalt bleibt.
 - Antworte NUR mit validem JSON, keine Markdown-Codeblöcke, kein Vorspann.
 
 Format:
@@ -108,7 +92,7 @@ Format:
   "titel": "kurzer Arbeitstitel",
   "hook": "...",
   "kern": "...",
-  "cta": "... (Übergangssatz + Like-/Kommentar-Einladung zusammen als ein Feld)",
+  "cta": "... (Übergangssatz + Like/Kommentar-Einladung + Folge-Hinweis, alles in einem Feld)",
   "vollstaendiges_skript": "Der komplette Text am Stück, so wie er gesprochen werden soll"
 }
 """
@@ -148,8 +132,6 @@ def generiere_skript(thema: str) -> dict:
 
 
 def pool_laden() -> list:
-    """Lädt den aktuellen (ggf. bereits erweiterten) Themenpool von Disk,
-    oder legt ihn beim allerersten Lauf mit dem Startpool an."""
     if os.path.exists(THEMEN_POOL_DATEI):
         with open(THEMEN_POOL_DATEI, encoding="utf-8") as f:
             return json.load(f)
@@ -162,12 +144,6 @@ def pool_speichern(pool: list):
 
 
 def neue_themen_generieren(bereits_vorhandene_themen: list, anzahl: int) -> list:
-    """
-    Lässt Claude eine Liste neuer, noch nicht verwendeter Themen für die
-    Kanal-Nische generieren. Wird automatisch aufgerufen, sobald der
-    Puffer an unbenutzten Themen zur Neige geht - dadurch geht dem Kanal
-    nie der Stoff aus, ohne dass manuell etwas nachgepflegt werden muss.
-    """
     prompt = f"""Generiere {anzahl} neue, unterschiedliche Themen-Ideen für einen TikTok-Kanal
 zum Thema "{KANAL_NISCHE}".
 
@@ -192,11 +168,6 @@ Beispiel: ["Warum ...", "Warum ...", ...]
 
 
 def thema_ohne_wiederholung_waehlen() -> str:
-    """
-    Wählt ein Thema, das noch nicht kürzlich verwendet wurde. Falls der
-    Puffer an unbenutzten Themen zur Neige geht, lässt Claude automatisch
-    neue Themen nachgenerieren und erweitert den Pool dauerhaft.
-    """
     pool = pool_laden()
 
     if os.path.exists(THEMEN_HISTORIE_DATEI):
@@ -247,7 +218,6 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 
 if __name__ == "__main__":
     main()
