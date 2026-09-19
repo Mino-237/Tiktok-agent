@@ -5,12 +5,13 @@ Setzt das finale Video zusammen aus:
 3. Logo-Overlay (assets/logo.png, optional)
 4. Tonspur: output/voiceover_full.mp3 (komplettes Azure-TTS-Voiceover)
 
-SERIEN-BADGE: Kleines "Fakt #N"-Badge oben links, durchgehend sichtbar.
+SERIEN-BADGE: Kleines "Fakt #N"-Badge oben links - AKTUELL DEAKTIVIERT
+(BADGE_AKTIV = False), bis der Kanal richtig startet. Einfach auf True
+setzen, um es wieder einzuschalten.
 
-EFFEKT-MOMENT (aktualisiert): Der Fachbegriff der Folge poppt jetzt mit
-einer kurzen "Bounce"-Animation auf (wächst leicht über die Zielgröße
-hinaus und federt zurück, statt einfach nur zu erscheinen) und bleibt
-länger sichtbar (POP_DAUER = 2,5s statt vorher 1,3s).
+EFFEKT-MOMENT: Der Fachbegriff der Folge poppt mit Bounce-Animation auf
+(wächst kurz über die Zielgröße hinaus und federt zurück), wenn der
+Kern-Teil beginnt, und bleibt POP_DAUER Sekunden sichtbar.
 """
 
 import subprocess
@@ -27,12 +28,15 @@ FERTIGES_VIDEO = "output/video_final.mp4"
 FONT_PFAD = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 POP_DAUER = 2.5  # Sekunden, wie lange der Fachbegriff insgesamt sichtbar bleibt
 
+# Serien-Badge EIN/AUS-Schalter - auf True setzen, um "Fakt #N" wieder anzuzeigen
+BADGE_AKTIV = False
+
 # Bounce-Animation-Einstellungen (Schriftgröße über die Zeit)
-BOUNCE_START_GROESSE = 20   # Startgröße beim Auftauchen (sehr klein)
-BOUNCE_UEBERSCHWINGEN = 82  # kurz über die Zielgröße hinauswachsen ("Bounce")
-BOUNCE_ZIEL_GROESSE = 68    # Größe, bei der es sich einpendelt
-BOUNCE_WACHSEN_DAUER = 0.15   # Sekunden bis zum Überschwingen
-BOUNCE_EINPENDELN_DAUER = 0.12  # Sekunden vom Überschwingen bis zur Zielgröße
+BOUNCE_START_GROESSE = 20
+BOUNCE_UEBERSCHWINGEN = 82
+BOUNCE_ZIEL_GROESSE = 68
+BOUNCE_WACHSEN_DAUER = 0.15
+BOUNCE_EINPENDELN_DAUER = 0.12
 
 
 def fachbegriff_ermitteln(skript_daten: dict) -> str:
@@ -54,10 +58,6 @@ def text_fuer_drawtext_escapen(text: str) -> str:
 
 
 def bounce_fontsize_ausdruck(start: float) -> str:
-    """Baut einen ffmpeg-Ausdruck, der die Schriftgröße über die Zeit
-    animiert: schnelles Wachsen -> kurzes Überschwingen -> Einpendeln
-    auf die Zielgröße. Ergibt einen kleinen "Bounce"-Effekt beim
-    Auftauchen des Textes."""
     t1 = start + BOUNCE_WACHSEN_DAUER
     t2 = t1 + BOUNCE_EINPENDELN_DAUER
     return (
@@ -92,8 +92,8 @@ def video_zusammensetzen():
     vorstufen_filter = []
     aktuelles_label = "0:v"
 
-    # Serien-Badge oben links, durchgehend sichtbar
-    if folge_nummer:
+    # Serien-Badge oben links (nur wenn BADGE_AKTIV = True)
+    if BADGE_AKTIV and folge_nummer:
         badge_text = text_fuer_drawtext_escapen(f"Fakt #{folge_nummer}")
         vorstufen_filter.append(
             f"[{aktuelles_label}]drawtext=fontfile={FONT_PFAD}:text='{badge_text}':"
@@ -143,10 +143,5 @@ def video_zusammensetzen():
     print(f"Finales Video erstellt: {FERTIGES_VIDEO}")
 
 
-if __name__ == "__main__":
-    video_zusammensetzen()
-
-if __name__ == "__main__":
-    video_zusammensetzen()
 if __name__ == "__main__":
     video_zusammensetzen()
