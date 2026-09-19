@@ -1,18 +1,19 @@
 """
 Erzeugt die KOMPLETTE Sprachausgabe (Hook + Kern + CTA - das ganze
-Skript) über die Azure Text-to-Speech-API (REST-Endpunkt, keine
-zusätzliche SDK-Abhängigkeit nötig - nutzt einfach "requests").
+Skript) über die Azure Text-to-Speech-API (REST-Endpunkt).
 
-Nutzt dieselbe Stimme (de-DE-FlorianMultilingualNeural), die schon bei
-D-ID gut ankam - nur jetzt direkt über Azure, ohne D-ID/Brandon als
-Zwischenstation. Echte deutsche Neural-Stimme (anders als OpenAIs TTS,
-die nur automatisch Sprache erkennt, aber primär für Englisch optimiert
-ist).
+Nutzt die Stimme de-DE-FlorianMultilingualNeural.
+
+NEU - PAUSE ZWISCHEN DEN CTA-SÄTZEN: Der CTA besteht aus zwei Sätzen
+(humorvoller Übergangssatz + Like/Folgen-Einladung). Damit die beiden
+nicht ohne Luft ineinander übergehen, wird zwischen ihnen jetzt eine
+kurze SSML-Sprechpause (600ms) eingefügt.
 
 Azure-Doku: https://learn.microsoft.com/azure/ai-services/speech-service/rest-text-to-speech
 """
 
 import os
+import re
 import json
 import subprocess
 import requests
@@ -23,10 +24,7 @@ AZURE_SPEECH_REGION = os.environ["AZURE_SPEECH_REGION"]
 STIMME = "de-DE-FlorianMultilingualNeural"
 TTS_URL = f"https://{AZURE_SPEECH_REGION}.tts.speech.microsoft.com/cognitiveservices/v1"
 
-
-def vollstaendigen_text_erstellen(daten: dict) -> str:
-    teile = [daten["hook"], daten["kern"], daten["cta"]]
-    return " ".join(t.strip() for t in teile)
+CTA_PAUSE_MS = 600  # Pause zwischen Übergangssatz und Like/Folgen-Einladung im CTA
 
 
 def escape_fuer_ssml(text: str) -> str:
@@ -37,11 +35,31 @@ def escape_fuer_ssml(text: str) -> str:
     )
 
 
-def voiceover_generieren(text: str, ziel_pfad: str):
+def cta_mit_pause_aufbauen(cta_text: str) -> str:
+    """Teilt den CTA am ersten Satzende auf (Übergangssatz | Rest) und
+    fügt dazwischen eine SSML-Pause ein. Falls der CTA nur aus einem
+    Satz besteht, wird er unverändert zurückgegeben."""
+    teile = re.split(r'(?<=[.!?])\s+', cta_text.strip(), maxsplit=1)
+    if len(teile) != 2:
+        return escape_fuer_ssml(cta_text.strip())
+
+    uebergang, rest = teile
+    pause = f'<break time="{CTA_PAUSE_MS}ms"/>'
+    return f"{escape_fuer_ssml(uebergang.strip())}{pause}{escape_fuer_ssml(rest.strip())}"
+
+
+def vollstaendigen_ssml_text_erstellen(daten: dict) -> str:
+    hook = escape_fuer_ssml(daten["hook"].strip())
+    kern = escape_fuer_ssml(daten["kern"].strip())
+    cta = cta_mit_pause_aufbauen(daten["cta"])
+    return f"{hook} {kern} {cta}"
+
+
+def voiceover_generieren(ssml_text_inhalt: str, ziel_pfad: str):
     ssml = (
         f'<speak version="1.0" xml:lang="de-DE">'
         f'<voice xml:lang="de-DE" name="{STIMME}">'
-        f'{escape_fuer_ssml(text)}'
+        f'{ssml_text_inhalt}'
         f'</voice></speak>'
     )
     headers = {
@@ -76,9 +94,9 @@ def main():
     with open("pending_script.json", encoding="utf-8") as f:
         daten = json.load(f)
 
-    text = vollstaendigen_text_erstellen(daten)
-    print("Generiere Voiceover für das komplette Skript (Azure TTS, Florian)...")
-    voiceover_generieren(text, "output/voiceover_full.mp3")
+    ssml_text_inhalt = vollstaendigen_ssml_text_erstellen(daten)
+    print("Generiere Voiceover für das komplette Skript (Azure TTS, Florian, mit CTA-Pause)...")
+    voiceover_generieren(ssml_text_inhalt, "output/voiceover_full.mp3")
 
     dauer = audio_dauer_ermitteln("output/voiceover_full.mp3")
 
