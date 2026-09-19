@@ -3,11 +3,12 @@ Generiert täglich (mehrmals täglich, manuell gestartet) ein Thema +
 Kurz-Skript für die Serie "Warum tun wir das?". Nutzt die Anthropic API
 (Claude), um einen Rohentwurf zu erstellen.
 
-NEU - FOLGEN-ZÄHLER: Jedes Skript bekommt eine fortlaufende Folgen-
-Nummer (video_zaehler.json), die NIE zurückgesetzt wird (anders als
-die Themen-Historie, die bei einem neuen Zyklus geleert wird). Wird im
-Video als kleines "Fakt #N"-Badge angezeigt (siehe compose_video.py) -
-motiviert zum Folgen, um keine Folge zu verpassen.
+FOLGEN-ZÄHLER: Jedes Skript bekommt eine fortlaufende Folgen-Nummer
+(video_zaehler.json), die NIE zurückgesetzt wird.
+
+NEU - HUMORVOLLERER CTA-ÜBERGANG: Der kurze Übergangssatz vor der
+Like-/Folgen-Einladung soll jetzt bewusst humorvoll/pointiert
+formuliert werden, statt einer neutralen Reaktion.
 
 WACHSTUMSPHASE-FORMAT: Verschlanktes 3-Teile-Format (Hook/Kern/CTA) für
 20-30 Sekunden Videos.
@@ -48,7 +49,7 @@ KANAL_NISCHE = "Alltagspsychologie - kognitive Verzerrungen, Gewohnheiten und so
 
 THEMEN_POOL_DATEI = "themen_pool.json"
 THEMEN_HISTORIE_DATEI = "themen_historie.json"
-ZAEHLER_DATEI = "video_zaehler.json"  # fortlaufend, wird NIE zurückgesetzt
+ZAEHLER_DATEI = "video_zaehler.json"
 
 MINDEST_PUFFER = 8
 NEUE_THEMEN_PRO_NACHSCHUB = 20
@@ -65,10 +66,18 @@ STRUKTUR (immer einhalten, nur 3 Teile - Zeit ist knapp!):
 2. KERN: Das psychologische Phänomen benennen UND in einem Fluss erklären,
    warum es passiert - kompakt, ohne ausführliches Beispiel (3-4 Sätze)
 3. CTA: Besteht aus ZWEI kurzen Teilen, die sich natürlich aneinanderreihen:
-   a) Ein KURZER Übergangssatz (3-5 Wörter) - Reaktion/Fazit zum Thema,
-      z.B. "Ziemlich verrückt, oder?" (abwechslungsreich, nicht immer gleich)
+   a) Ein KURZER, HUMORVOLLER/POINTIERTER Übergangssatz (3-6 Wörter) -
+      eine augenzwinkernde, leicht selbstironische Reaktion auf das
+      gerade Erklärte. Nutze Wortwitz, Übertreibung oder eine
+      unerwartete Formulierung, KEINE neutrale/langweilige Reaktion.
+      Beispiele für den STIL (nicht wortwörtlich kopieren, immer neu
+      und passend zum jeweiligen Thema formulieren):
+      - "Dein Gehirn lässt sich richtig gern austricksen!"
+      - "Manipuliert - und zwar von dir selbst."
+      - "Tja, dumm gelaufen, liebes Gehirn."
+      - "Willkommen im Club der Selbstbetrüger."
    b) Eine Like-und-Folgen-Einladung, angelehnt an genau diesen Wortlaut:
-      "Lass doch gerne ein Like da und folge mir für mehr Psychologie-
+      "Lass gerne ein Like da und folge mir für mehr Psychologie-
       Wissen." Der Wortlaut darf leicht variiert werden, aber die
       Grundstruktur "Like da lassen" + "folge mir für mehr..." muss
       erhalten bleiben. KEINE separate Aufforderung zum Kommentieren.
@@ -88,7 +97,7 @@ Format:
   "titel": "kurzer Arbeitstitel",
   "hook": "...",
   "kern": "...",
-  "cta": "... (Übergangssatz + Like-/Folgen-Einladung, alles in einem Feld)",
+  "cta": "... (humorvoller Übergangssatz + Like-/Folgen-Einladung, alles in einem Feld, als zwei durch einen Satzpunkt getrennte Sätze)",
   "vollstaendiges_skript": "Der komplette Text am Stück, so wie er gesprochen werden soll"
 }
 """
@@ -128,9 +137,6 @@ def generiere_skript(thema: str) -> dict:
 
 
 def naechste_folgen_nummer() -> int:
-    """Liest den aktuellen Zählerstand, erhöht ihn um 1 und speichert
-    ihn zurück. Wird NIE zurückgesetzt (anders als die Themen-Historie),
-    damit die Folgen-Nummer im Video immer weiterzählt."""
     if os.path.exists(ZAEHLER_DATEI):
         with open(ZAEHLER_DATEI, encoding="utf-8") as f:
             zaehler_daten = json.load(f)
@@ -229,9 +235,6 @@ def main():
     print(f"Skript erstellt: {daten['titel']} (Folge #{daten['folge_nummer']})")
     print(f"Gespeichert unter: {ausgabe_pfad}")
 
-
-if __name__ == "__main__":
-    main()
 
 if __name__ == "__main__":
     main()
