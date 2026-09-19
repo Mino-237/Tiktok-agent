@@ -38,8 +38,8 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          for f in themen_pool.json themen_historie.json pending_script.json; do
-            [ -f "$f" ] && git add "$f"
+          for f in themen_pool.json themen_historie.json pending_script.json video_zaehler.json; do
+           [ -f "$f" ] && git add "$f"
           done
           git diff --staged --quiet || git commit -m "Neues Skript zur Freigabe generiert [skip ci]"
           git push
