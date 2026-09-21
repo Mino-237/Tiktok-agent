@@ -1,20 +1,19 @@
 """
 Setzt das finale Video zusammen aus:
-1. Bewegtem Hintergrund aus KI-Bildern (output/background.mp4) - jetzt
-   mit Loop-Ende (blendet am Schluss zurück zum Hook-Bild)
+1. Bewegtem Hintergrund aus KI-Bildern (output/background.mp4)
 2. Wort-für-Wort animierten Karaoke-Untertiteln (output/captions.ass)
 3. Logo-Overlay (assets/logo.png, optional)
 4. Tonspur: output/voiceover_full.mp3
 5. Sound-Effekt (assets/pop_sound.wav) beim Effekt-Moment
 
-NEU - AUDIO-PADDING FÜRS LOOP-ENDE: Das Hintergrund-Video ist durch das
-Loop-Ende jetzt ein kleines Stück länger als die reine Sprechzeit.
-Früher hätte "-shortest" dieses Extra-Stück einfach abgeschnitten.
-Jetzt wird die Tonspur stattdessen mit Stille bis zur exakten
-Hintergrund-Länge aufgefüllt (apad-Filter), damit der Loop-Teil am Ende
-sichtbar bleibt.
-
-SERIEN-BADGE: Kleines "Fakt #N"-Badge oben links - AKTUELL DEAKTIVIERT.
+NEU - PRÄZISES TIMING FÜR DEN EFFEKT-MOMENT: Bisher wurde der Zeitpunkt
+für den Fachbegriff-Pop nur GESCHÄTZT (basierend auf Wortanzahl-
+Proportionen), was zu spürbaren Abweichungen zwischen Bild und
+tatsächlich gesprochenem Wort führte. Jetzt wird stattdessen in
+output/captions.json (den echten Whisper-Zeitstempeln) nach dem ersten
+Wort des Fachbegriffs gesucht und GENAU dieser Zeitpunkt genutzt. Nur
+falls der Begriff dort nicht gefunden wird, greift die alte Schätzung
+als Sicherheitsnetz.
 """
 
 import subprocess
@@ -25,6 +24,7 @@ import json
 HINTERGRUND = "output/background.mp4"
 VOICEOVER = "output/voiceover_full.mp3"
 UNTERTITEL = "output/captions.ass"
+CAPTIONS_JSON = "output/captions.json"
 LOGO = "assets/logo.png"
 POP_SOUND = "assets/pop_sound.wav"
 FERTIGES_VIDEO = "output/video_final.mp4"
@@ -48,6 +48,37 @@ def fachbegriff_ermitteln(skript_daten: dict) -> str:
     if treffer:
         return treffer.group(1).strip()
     return skript_daten.get("titel", "")
+
+
+def wort_normalisieren(text: str) -> str:
+    return re.sub(r'[^\wäöüß]', '', text.lower())
+
+
+def echten_start_zeitpunkt_suchen(fachbegriff: str, fallback: float) -> float:
+    """Sucht in den echten Whisper-Zeitstempeln (captions.json) nach dem
+    ERSTEN WORT des Fachbegriffs und gibt dessen exakten Start-Zeitpunkt
+    zurück. Fällt auf die Schätzung zurück, falls nichts gefunden wird."""
+    if not fachbegriff or not os.path.exists(CAPTIONS_JSON):
+        return fallback
+
+    erstes_wort = re.split(r'[\s\-]+', fachbegriff.strip())[0]
+    erstes_wort_norm = wort_normalisieren(erstes_wort)
+    if not erstes_wort_norm:
+        return fallback
+
+    with open(CAPTIONS_JSON, encoding="utf-8") as f:
+        woerter = json.load(f)
+
+    for wort in woerter:
+        if wort_normalisieren(wort["text"]) == erstes_wort_norm:
+            return wort["start"]
+
+    for wort in woerter:
+        wort_norm = wort_normalisieren(wort["text"])
+        if len(erstes_wort_norm) >= 4 and erstes_wort_norm[:4] in wort_norm:
+            return wort["start"]
+
+    return fallback
 
 
 def text_fuer_drawtext_escapen(text: str) -> str:
@@ -78,9 +109,14 @@ def video_zusammensetzen():
         meta = json.load(f)
 
     folge_nummer = skript_daten.get("folge_nummer")
-    kern_start_zeit = meta.get("kern_start_zeit")
+    kern_start_zeit_geschaetzt = meta.get("kern_start_zeit")
     hintergrund_gesamtdauer = meta.get("hintergrund_gesamtdauer", meta.get("duration"))
     fachbegriff = fachbegriff_ermitteln(skript_daten)
+
+    kern_start_zeit = echten_start_zeitpunkt_suchen(fachbegriff, kern_start_zeit_geschaetzt)
+    if kern_start_zeit != kern_start_zeit_geschaetzt:
+        print(f"Effekt-Moment-Timing aus echter Transkription übernommen: {kern_start_zeit:.2f}s (Schätzung war {kern_start_zeit_geschaetzt:.2f}s)")
+
     pop_sound_vorhanden = os.path.exists(POP_SOUND) and kern_start_zeit is not None
 
     inputs = [
