@@ -2,25 +2,23 @@
 Erzeugt den Hintergrund: PRO SKRIPT-ABSCHNITT wird ein eigenes,
 thematisch passendes KI-Bild generiert (GPT Image 2).
 
-NEU - CLIFFHANGER IM HOOK-ABSCHNITT: Der kurze Cliffhanger-Satz ("Aber
-es kommt noch besser...") wird für Timing und Bild-Prompt mit dem Hook
-zusammengefasst (bleibt visuell dasselbe Bild wie der Hook - für 2-4
-Wörter lohnt sich kein eigenes Bild).
+TEST-CACHE: Solange pending_script.json "testmodus": true enthält, wird
+das fertige Hintergrund-Video (inkl. aller generierten Bilder) in
+test_cache/ zwischengespeichert. Bei zukünftigen Testläufen wird es von
+dort wiederverwendet, statt erneut bei GPT Image angefragt zu werden -
+Bilder bleiben zwischen Testläufen exakt gleich, damit sich Video-
+Effekt-Änderungen (Zoom, Crossfade, Effekt-Moment etc.) fair
+vergleichen lassen, ohne dass jedes Mal andere Bilder mitspielen.
 
-Der "Kern"-Abschnitt wird automatisch anhand seiner Sätze in mehrere
-Teilbilder aufgeteilt (KERN_TEILE_ANZAHL).
-
-HOOK-ZOOM: Das allererste Bild bekommt einen längeren, langsameren Zoom.
-WEICHE ÜBERGÄNGE (CROSSFADE): Bilder werden sanft ineinander übergeblendet.
-
-TIMING FÜR EFFEKT-MOMENT: Der Zeitpunkt, an dem der Kern-Teil beginnt,
-wird in video_meta.json gespeichert (Feld "kern_start_zeit").
+Der Cliffhanger wird für Timing und Bild-Prompt mit dem Hook
+zusammengefasst.
 """
 
 import os
 import re
 import json
 import math
+import shutil
 import subprocess
 import base64
 from openai import OpenAI
@@ -29,13 +27,17 @@ client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
 BREITE, HOEHE = 1080, 1920
 FPS = 30
-MINDEST_DAUER_PRO_ABSCHNITT = 3.5  # Sekunden
-KERN_TEILE_ANZAHL = 2  # in wie viele Teilbilder der "Kern"-Abschnitt aufgeteilt wird
+MINDEST_DAUER_PRO_ABSCHNITT = 3.5
+KERN_TEILE_ANZAHL = 2
 
-PUNCH_DAUER_FRAMES = 60  # ca. 2s bei 30 FPS
+PUNCH_DAUER_FRAMES = 60
 PUNCH_ZOOM_ZIEL = 1.22
 
-CROSSFADE_DAUER = 0.35  # Sekunden
+CROSSFADE_DAUER = 0.35
+
+TEST_CACHE_ORDNER = "test_cache"
+CACHE_VIDEO_PFAD = os.path.join(TEST_CACHE_ORDNER, "background.mp4")
+CACHE_META_PFAD = os.path.join(TEST_CACHE_ORDNER, "background_meta.json")
 
 STIL_BESCHREIBUNG = (
     "Flat, modern illustrated digital art style featuring a simple, "
@@ -67,8 +69,6 @@ def kern_in_teile_splitten(kern_text: str, anzahl_teile: int = KERN_TEILE_ANZAHL
 
 
 def abschnitte_erstellen(skript_daten: dict) -> list:
-    """Baut die Liste aller Bild-Abschnitte. Der Cliffhanger wird mit
-    dem Hook zusammengefasst (kein eigenes Bild für 2-4 Wörter)."""
     hook_text = skript_daten["hook"].strip()
     cliffhanger_text = skript_daten.get("cliffhanger", "").strip()
     kombinierter_hook = f"{hook_text} {cliffhanger_text}".strip()
@@ -107,9 +107,7 @@ def bild_generieren(prompt: str, ziel_pfad: str):
 def abschnitts_dauern_berechnen(abschnitte: list, gesamt_dauer: float) -> list:
     woerter_pro_abschnitt = [len(text.split()) for _, text in abschnitte]
     gesamt_woerter = sum(woerter_pro_abschnitt) or 1
-
-    ziel_gesamt = gesamt_dauer + 1  # kleiner Puffer
-
+    ziel_gesamt = gesamt_dauer + 1
     roh_dauern = [
         ziel_gesamt * anzahl / gesamt_woerter for anzahl in woerter_pro_abschnitt
     ]
@@ -188,29 +186,45 @@ def main():
 
     with open("pending_script.json", encoding="utf-8") as f:
         skript_daten = json.load(f)
-    thema = skript_daten.get("thema_original", skript_daten.get("titel", ""))
 
-    abschnitte = abschnitte_erstellen(skript_daten)
-    abschnitts_dauern = abschnitts_dauern_berechnen(abschnitte, dauer)
+    testmodus = skript_daten.get("testmodus", False)
 
-    bild_pfade_und_dauern = []
-    for idx, ((label, abschnitt_text), abschnitt_dauer) in enumerate(zip(abschnitte, abschnitts_dauern)):
-        prompt = bild_prompt_erstellen(thema, label, abschnitt_text)
-        ziel_pfad = f"output/hintergrund_{idx}.png"
-        print(f"Generiere Bild für Abschnitt '{label}' ({abschnitt_dauer:.1f}s)...")
-        bild_generieren(prompt, ziel_pfad)
-        bild_pfade_und_dauern.append((ziel_pfad, abschnitt_dauer))
+    if testmodus and os.path.exists(CACHE_VIDEO_PFAD) and os.path.exists(CACHE_META_PFAD):
+        print("⚠️  TEST-MODUS: nutze gecachtes Hintergrund-Video (keine neuen GPT-Image-Anfragen).")
+        shutil.copy(CACHE_VIDEO_PFAD, "output/background.mp4")
+        with open(CACHE_META_PFAD, encoding="utf-8") as f:
+            cache_meta = json.load(f)
+        kern_start_zeit = cache_meta["kern_start_zeit"]
+    else:
+        thema = skript_daten.get("thema_original", skript_daten.get("titel", ""))
+        abschnitte = abschnitte_erstellen(skript_daten)
+        abschnitts_dauern = abschnitts_dauern_berechnen(abschnitte, dauer)
 
-    print(f"Setze Hintergrund-Video aus {len(bild_pfade_und_dauern)} Bildern zusammen (Crossfade + Hook-Zoom)...")
-    hintergrund_video_erstellen(bild_pfade_und_dauern, "output/background.mp4")
+        bild_pfade_und_dauern = []
+        for idx, ((label, abschnitt_text), abschnitt_dauer) in enumerate(zip(abschnitte, abschnitts_dauern)):
+            prompt = bild_prompt_erstellen(thema, label, abschnitt_text)
+            ziel_pfad = f"output/hintergrund_{idx}.png"
+            print(f"Generiere Bild für Abschnitt '{label}' ({abschnitt_dauer:.1f}s)...")
+            bild_generieren(prompt, ziel_pfad)
+            bild_pfade_und_dauern.append((ziel_pfad, abschnitt_dauer))
 
-    kern_start_zeit = max(0.0, abschnitts_dauern[0] - CROSSFADE_DAUER)
+        print(f"Setze Hintergrund-Video aus {len(bild_pfade_und_dauern)} Bildern zusammen...")
+        hintergrund_video_erstellen(bild_pfade_und_dauern, "output/background.mp4")
+
+        kern_start_zeit = max(0.0, abschnitts_dauern[0] - CROSSFADE_DAUER)
+
+        if testmodus:
+            os.makedirs(TEST_CACHE_ORDNER, exist_ok=True)
+            shutil.copy("output/background.mp4", CACHE_VIDEO_PFAD)
+            with open(CACHE_META_PFAD, "w", encoding="utf-8") as f:
+                json.dump({"kern_start_zeit": kern_start_zeit}, f)
+            print("Test-Hintergrund im Cache gespeichert für zukünftige Testläufe.")
+
     meta["kern_start_zeit"] = kern_start_zeit
     with open("output/video_meta.json", "w", encoding="utf-8") as f:
         json.dump(meta, f)
 
-    gesamt = sum(d for _, d in bild_pfade_und_dauern) - CROSSFADE_DAUER * (len(bild_pfade_und_dauern) - 1)
-    print(f"Hintergrund erstellt: ~{gesamt:.1f}s (Kern startet bei ~{kern_start_zeit:.1f}s)")
+    print(f"Hintergrund bereit (Kern startet bei ~{kern_start_zeit:.1f}s)")
 
 
 if __name__ == "__main__":
