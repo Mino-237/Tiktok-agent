@@ -4,14 +4,15 @@ Setzt das finale Video zusammen aus:
 2. Wort-für-Wort animierten Karaoke-Untertiteln (output/captions.ass)
 3. Logo-Overlay (assets/logo.png, optional)
 4. Tonspur: output/voiceover_full.mp3 (komplettes Azure-TTS-Voiceover)
+5. NEU - Sound-Effekt (assets/pop_sound.wav): kurzer, prozedural
+   erzeugter "Whoosh-Pop"-Sound, synchron zum Effekt-Moment (wenn der
+   Fachbegriff aufploppt) untergemischt.
 
 SERIEN-BADGE: Kleines "Fakt #N"-Badge oben links - AKTUELL DEAKTIVIERT
-(BADGE_AKTIV = False), bis der Kanal richtig startet. Einfach auf True
-setzen, um es wieder einzuschalten.
+(BADGE_AKTIV = False).
 
-EFFEKT-MOMENT: Der Fachbegriff der Folge poppt mit Bounce-Animation auf
-(wächst kurz über die Zielgröße hinaus und federt zurück), wenn der
-Kern-Teil beginnt, und bleibt POP_DAUER Sekunden sichtbar.
+EFFEKT-MOMENT: Der Fachbegriff der Folge poppt mit Bounce-Animation +
+Sound-Effekt auf, wenn der Kern-Teil beginnt.
 """
 
 import subprocess
@@ -23,15 +24,15 @@ HINTERGRUND = "output/background.mp4"
 VOICEOVER = "output/voiceover_full.mp3"
 UNTERTITEL = "output/captions.ass"
 LOGO = "assets/logo.png"
+POP_SOUND = "assets/pop_sound.wav"
 FERTIGES_VIDEO = "output/video_final.mp4"
 
 FONT_PFAD = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 POP_DAUER = 2.5  # Sekunden, wie lange der Fachbegriff insgesamt sichtbar bleibt
+POP_SOUND_LAUTSTAERKE = 0.55  # relative Lautstärke des Sound-Effekts (1.0 = unverändert)
 
-# Serien-Badge EIN/AUS-Schalter - auf True setzen, um "Fakt #N" wieder anzuzeigen
 BADGE_AKTIV = False
 
-# Bounce-Animation-Einstellungen (Schriftgröße über die Zeit)
 BOUNCE_START_GROESSE = 20
 BOUNCE_UEBERSCHWINGEN = 82
 BOUNCE_ZIEL_GROESSE = 68
@@ -40,8 +41,6 @@ BOUNCE_EINPENDELN_DAUER = 0.12
 
 
 def fachbegriff_ermitteln(skript_daten: dict) -> str:
-    """Extrahiert den Fachbegriff aus thema_original, z.B. aus
-    'Warum ... (Blinder Fleck)' wird 'Blinder Fleck'."""
     thema = skript_daten.get("thema_original", "")
     treffer = re.search(r'\(([^)]+)\)\s*$', thema)
     if treffer:
@@ -79,6 +78,7 @@ def video_zusammensetzen():
     folge_nummer = skript_daten.get("folge_nummer")
     kern_start_zeit = meta.get("kern_start_zeit")
     fachbegriff = fachbegriff_ermitteln(skript_daten)
+    pop_sound_vorhanden = os.path.exists(POP_SOUND) and kern_start_zeit is not None
 
     inputs = [
         "-i", HINTERGRUND,
@@ -89,10 +89,13 @@ def video_zusammensetzen():
     if logo_vorhanden:
         inputs += ["-i", LOGO]
 
+    if pop_sound_vorhanden:
+        inputs += ["-i", POP_SOUND]
+        pop_sound_index = 3 if logo_vorhanden else 2
+
     vorstufen_filter = []
     aktuelles_label = "0:v"
 
-    # Serien-Badge oben links (nur wenn BADGE_AKTIV = True)
     if BADGE_AKTIV and folge_nummer:
         badge_text = text_fuer_drawtext_escapen(f"Fakt #{folge_nummer}")
         vorstufen_filter.append(
@@ -102,8 +105,6 @@ def video_zusammensetzen():
         )
         aktuelles_label = "vbadge"
 
-    # Effekt-Moment: Fachbegriff poppt mit Bounce-Animation auf, wenn
-    # der Kern-Teil beginnt, und bleibt POP_DAUER Sekunden sichtbar
     if fachbegriff and kern_start_zeit is not None:
         begriff_text = text_fuer_drawtext_escapen(fachbegriff)
         start = kern_start_zeit
@@ -123,9 +124,23 @@ def video_zusammensetzen():
     if logo_vorhanden:
         logo_index = 2
         vorstufen_filter.append(f"[vout1][{logo_index}:v]overlay=W-w-40:40[vout2]")
-        finaler_output = "[vout2]"
+        finaler_video_output = "[vout2]"
     else:
-        finaler_output = "[vout1]"
+        finaler_video_output = "[vout1]"
+
+    # Audio: Voiceover + (falls vorhanden) zeitversetzter Sound-Effekt
+    # genau beim Effekt-Moment zusammenmischen
+    if pop_sound_vorhanden:
+        delay_ms = int(kern_start_zeit * 1000)
+        vorstufen_filter.append(
+            f"[{pop_sound_index}:a]adelay={delay_ms}:all=1,volume={POP_SOUND_LAUTSTAERKE}[popsound]"
+        )
+        vorstufen_filter.append(
+            f"[1:a][popsound]amix=inputs=2:duration=first:normalize=0[aout]"
+        )
+        finaler_audio_output = "[aout]"
+    else:
+        finaler_audio_output = "1:a"
 
     filter_complex = ";".join(vorstufen_filter)
 
@@ -133,8 +148,8 @@ def video_zusammensetzen():
         "ffmpeg", "-y",
         *inputs,
         "-filter_complex", filter_complex,
-        "-map", finaler_output,
-        "-map", "1:a",
+        "-map", finaler_video_output,
+        "-map", finaler_audio_output,
         "-c:v", "libx264", "-c:a", "aac",
         "-shortest",
         FERTIGES_VIDEO,
