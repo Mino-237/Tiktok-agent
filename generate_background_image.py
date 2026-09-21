@@ -2,16 +2,18 @@
 Erzeugt den Hintergrund: PRO SKRIPT-ABSCHNITT wird ein eigenes,
 thematisch passendes KI-Bild generiert (GPT Image 2).
 
-TEST-CACHE: Solange pending_script.json "testmodus": true enthält, wird
-das fertige Hintergrund-Video (inkl. aller generierten Bilder) in
-test_cache/ zwischengespeichert. Bei zukünftigen Testläufen wird es von
-dort wiederverwendet, statt erneut bei GPT Image angefragt zu werden -
-Bilder bleiben zwischen Testläufen exakt gleich, damit sich Video-
-Effekt-Änderungen (Zoom, Crossfade, Effekt-Moment etc.) fair
-vergleichen lassen, ohne dass jedes Mal andere Bilder mitspielen.
+NEU - HOOK IN 2 BILDERN: Hook und Cliffhanger bekommen jetzt JEWEILS
+EIN EIGENES Bild (statt vorher kombiniert in einem) - mehr Bildwechsel
+genau in den ersten, kritischsten Sekunden (höchste Abbruchrate laut
+TikTok-Analysen).
 
-Der Cliffhanger wird für Timing und Bild-Prompt mit dem Hook
-zusammengefasst.
+NEU - LOOP-FÄHIGES ENDE: Am Ende blendet das Video zurück zum
+allerersten Hook-Bild über und hält kurz darauf. Wenn TikTok das Video
+automatisch erneut abspielt (Loop), sieht der Zuschauer nahtlos
+dasselbe Bild weiterlaufen statt einen harten Cut.
+
+TEST-CACHE: Im Test-Modus wird das fertige Hintergrund-Video gecacht
+und bei weiteren Testläufen wiederverwendet.
 """
 
 import os
@@ -34,6 +36,9 @@ PUNCH_DAUER_FRAMES = 60
 PUNCH_ZOOM_ZIEL = 1.22
 
 CROSSFADE_DAUER = 0.35
+
+LOOP_HALTE_DAUER = 0.6  # Sekunden, die am Ende auf dem Hook-Bild "gehalten" wird
+LOOP_ABSCHNITT_DAUER = LOOP_HALTE_DAUER + CROSSFADE_DAUER
 
 TEST_CACHE_ORDNER = "test_cache"
 CACHE_VIDEO_PFAD = os.path.join(TEST_CACHE_ORDNER, "background.mp4")
@@ -69,11 +74,12 @@ def kern_in_teile_splitten(kern_text: str, anzahl_teile: int = KERN_TEILE_ANZAHL
 
 
 def abschnitte_erstellen(skript_daten: dict) -> list:
-    hook_text = skript_daten["hook"].strip()
-    cliffhanger_text = skript_daten.get("cliffhanger", "").strip()
-    kombinierter_hook = f"{hook_text} {cliffhanger_text}".strip()
+    """Hook und Cliffhanger bekommen jetzt JEWEILS ein eigenes Bild."""
+    abschnitte = [("Hook / einleitende Frage", skript_daten["hook"].strip())]
 
-    abschnitte = [("Hook / einleitende Frage", kombinierter_hook)]
+    cliffhanger_text = skript_daten.get("cliffhanger", "").strip()
+    if cliffhanger_text:
+        abschnitte.append(("Cliffhanger / Spannungsaufbau", cliffhanger_text))
 
     kern_teile = kern_in_teile_splitten(skript_daten["kern"])
     for i, teil_text in enumerate(kern_teile, start=1):
@@ -125,7 +131,10 @@ def zoom_ausdruck_erstellen(ist_hook: bool) -> str:
     return "min(zoom+0.0007,1.15)"
 
 
-def hintergrund_video_erstellen(bild_pfade_und_dauern: list, ziel_pfad: str):
+def hintergrund_video_erstellen(bild_pfade_und_dauern: list, ziel_pfad: str) -> float:
+    """Baut das Hintergrund-Video und gibt die tatsächliche
+    Gesamtdauer zurück (das Loop-Ende macht das Video etwas länger als
+    die reine Sprechzeit)."""
     inputs = []
     filter_teile = []
 
@@ -143,6 +152,8 @@ def hintergrund_video_erstellen(bild_pfade_und_dauern: list, ziel_pfad: str):
             f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':"
             f"d=1:s={BREITE}x{HOEHE}:fps={FPS},setsar=1,format=yuv420p[v{idx}]"
         )
+
+    gesamtdauer = bild_pfade_und_dauern[0][1]
 
     if len(bild_pfade_und_dauern) == 1:
         finaler_output = "[v0]"
@@ -162,6 +173,7 @@ def hintergrund_video_erstellen(bild_pfade_und_dauern: list, ziel_pfad: str):
             kumulierte_dauer = kumulierte_dauer - CROSSFADE_DAUER + naechste_dauer
             aktuelles_label = neues_label
 
+        gesamtdauer = kumulierte_dauer
         filter_teile.append(";".join(xfade_teile))
         finaler_output = f"[{aktuelles_label}]"
 
@@ -177,6 +189,7 @@ def hintergrund_video_erstellen(bild_pfade_und_dauern: list, ziel_pfad: str):
         ziel_pfad,
     ]
     subprocess.run(befehl, check=True)
+    return gesamtdauer
 
 
 def main():
@@ -195,6 +208,7 @@ def main():
         with open(CACHE_META_PFAD, encoding="utf-8") as f:
             cache_meta = json.load(f)
         kern_start_zeit = cache_meta["kern_start_zeit"]
+        hintergrund_gesamtdauer = cache_meta["hintergrund_gesamtdauer"]
     else:
         thema = skript_daten.get("thema_original", skript_daten.get("titel", ""))
         abschnitte = abschnitte_erstellen(skript_daten)
@@ -208,8 +222,11 @@ def main():
             bild_generieren(prompt, ziel_pfad)
             bild_pfade_und_dauern.append((ziel_pfad, abschnitt_dauer))
 
-        print(f"Setze Hintergrund-Video aus {len(bild_pfade_und_dauern)} Bildern zusammen...")
-        hintergrund_video_erstellen(bild_pfade_und_dauern, "output/background.mp4")
+        hook_bild_pfad = bild_pfade_und_dauern[0][0]
+        bild_pfade_und_dauern.append((hook_bild_pfad, LOOP_ABSCHNITT_DAUER))
+
+        print(f"Setze Hintergrund-Video aus {len(bild_pfade_und_dauern)} Bildern zusammen (inkl. Loop-Ende)...")
+        hintergrund_gesamtdauer = hintergrund_video_erstellen(bild_pfade_und_dauern, "output/background.mp4")
 
         kern_start_zeit = max(0.0, abschnitts_dauern[0] - CROSSFADE_DAUER)
 
@@ -217,14 +234,18 @@ def main():
             os.makedirs(TEST_CACHE_ORDNER, exist_ok=True)
             shutil.copy("output/background.mp4", CACHE_VIDEO_PFAD)
             with open(CACHE_META_PFAD, "w", encoding="utf-8") as f:
-                json.dump({"kern_start_zeit": kern_start_zeit}, f)
+                json.dump({
+                    "kern_start_zeit": kern_start_zeit,
+                    "hintergrund_gesamtdauer": hintergrund_gesamtdauer,
+                }, f)
             print("Test-Hintergrund im Cache gespeichert für zukünftige Testläufe.")
 
     meta["kern_start_zeit"] = kern_start_zeit
+    meta["hintergrund_gesamtdauer"] = hintergrund_gesamtdauer
     with open("output/video_meta.json", "w", encoding="utf-8") as f:
         json.dump(meta, f)
 
-    print(f"Hintergrund bereit (Kern startet bei ~{kern_start_zeit:.1f}s)")
+    print(f"Hintergrund bereit: {hintergrund_gesamtdauer:.1f}s gesamt (Kern startet bei ~{kern_start_zeit:.1f}s)")
 
 
 if __name__ == "__main__":
