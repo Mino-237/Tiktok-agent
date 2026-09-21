@@ -2,18 +2,16 @@
 Erzeugt den Hintergrund: PRO SKRIPT-ABSCHNITT wird ein eigenes,
 thematisch passendes KI-Bild generiert (GPT Image 2).
 
-NEU - HOOK IN 2 BILDERN: Hook und Cliffhanger bekommen jetzt JEWEILS
-EIN EIGENES Bild (statt vorher kombiniert in einem) - mehr Bildwechsel
-genau in den ersten, kritischsten Sekunden (höchste Abbruchrate laut
-TikTok-Analysen).
+Hook und Cliffhanger bekommen jeweils ein eigenes Bild.
 
-NEU - LOOP-FÄHIGES ENDE: Am Ende blendet das Video zurück zum
-allerersten Hook-Bild über und hält kurz darauf. Wenn TikTok das Video
-automatisch erneut abspielt (Loop), sieht der Zuschauer nahtlos
-dasselbe Bild weiterlaufen statt einen harten Cut.
+LOOP-FÄHIGES ENDE (verkürzt): Am Ende blendet das Video zurück zum
+allerersten Hook-Bild über. LOOP_HALTE_DAUER wurde von 0,6s auf 0,25s
+reduziert - kürzere "stille" Phase am Ende, spürbar knackiger.
 
-TEST-CACHE: Im Test-Modus wird das fertige Hintergrund-Video gecacht
-und bei weiteren Testläufen wiederverwendet.
+Zusätzlich wurde der allgemeine Zeitpuffer von 1,0s auf 0,4s reduziert
+- insgesamt weniger "Luft" am Ende des letzten Abschnitts.
+
+TEST-CACHE: Im Test-Modus wird das fertige Hintergrund-Video gecacht.
 """
 
 import os
@@ -37,7 +35,9 @@ PUNCH_ZOOM_ZIEL = 1.22
 
 CROSSFADE_DAUER = 0.35
 
-LOOP_HALTE_DAUER = 0.6  # Sekunden, die am Ende auf dem Hook-Bild "gehalten" wird
+ZEITPUFFER = 0.4
+
+LOOP_HALTE_DAUER = 0.25
 LOOP_ABSCHNITT_DAUER = LOOP_HALTE_DAUER + CROSSFADE_DAUER
 
 TEST_CACHE_ORDNER = "test_cache"
@@ -74,7 +74,6 @@ def kern_in_teile_splitten(kern_text: str, anzahl_teile: int = KERN_TEILE_ANZAHL
 
 
 def abschnitte_erstellen(skript_daten: dict) -> list:
-    """Hook und Cliffhanger bekommen jetzt JEWEILS ein eigenes Bild."""
     abschnitte = [("Hook / einleitende Frage", skript_daten["hook"].strip())]
 
     cliffhanger_text = skript_daten.get("cliffhanger", "").strip()
@@ -113,7 +112,7 @@ def bild_generieren(prompt: str, ziel_pfad: str):
 def abschnitts_dauern_berechnen(abschnitte: list, gesamt_dauer: float) -> list:
     woerter_pro_abschnitt = [len(text.split()) for _, text in abschnitte]
     gesamt_woerter = sum(woerter_pro_abschnitt) or 1
-    ziel_gesamt = gesamt_dauer + 1
+    ziel_gesamt = gesamt_dauer + ZEITPUFFER
     roh_dauern = [
         ziel_gesamt * anzahl / gesamt_woerter for anzahl in woerter_pro_abschnitt
     ]
@@ -132,9 +131,6 @@ def zoom_ausdruck_erstellen(ist_hook: bool) -> str:
 
 
 def hintergrund_video_erstellen(bild_pfade_und_dauern: list, ziel_pfad: str) -> float:
-    """Baut das Hintergrund-Video und gibt die tatsächliche
-    Gesamtdauer zurück (das Loop-Ende macht das Video etwas länger als
-    die reine Sprechzeit)."""
     inputs = []
     filter_teile = []
 
