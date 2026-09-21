@@ -5,6 +5,8 @@ on:
     # Wird NUR manuell gestartet (über den "Run workflow"-Button in
     # GitHub Actions), nachdem du pending_script.json geprüft/bearbeitet
     # hast. Läuft NICHT automatisch nach einem Zeitplan.
+permissions:
+  contents: write  
 
 jobs:
   create_video:
@@ -51,3 +53,12 @@ jobs:
           name: debug-output-${{ github.run_id }}
           path: output/
           retention-days: 14
+      - name: Test-Cache zurück ins Repo committen
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          [ -d test_cache ] && git add test_cache
+          git diff --staged --quiet || git commit -m "Test-Cache aktualisiert [skip ci]"
+          git pull --rebase origin main
+          git push
