@@ -3,22 +3,21 @@ Generiert täglich (mehrmals täglich, manuell gestartet) ein Thema +
 Kurz-Skript für die Serie "Warum tun wir das?". Nutzt die Anthropic API
 (Claude), um einen Rohentwurf zu erstellen.
 
-NEU - TEST-MODUS: Solange TESTMODUS = True ist, wird IMMER dasselbe
-Test-Thema genutzt und der Themenpool/die Historie/der Folgen-Zähler
-werden NICHT angerührt (keine Dateien geschrieben). Verhindert, dass
-beim Testen der Video-Pipeline unnötig Themen "verbraucht" werden oder
-die Folgen-Nummerierung vorzeitig hochzählt. Vor dem echten Start auf
-TESTMODUS = False umstellen.
+TEST-MODUS (überarbeitet): Solange TESTMODUS = True ist, wird das
+Test-Thema nur BEIM ALLERERSTEN LAUF generiert. Existiert bereits ein
+pending_script.json mit demselben Test-Thema (Feld "testmodus": true),
+wird es unverändert wiederverwendet - kein erneuter Claude-Aufruf, kein
+neuer Text. So bleibt der Skript-Text über mehrere Testläufe hinweg
+exakt gleich, und generate_voiceover.py / generate_background_image.py
+können ihrerseits Ton und Bilder cachen (siehe dort) - für einen
+wirklich fairen Vergleich beim Testen von Video-Effekten. Vor dem
+echten Start auf TESTMODUS = False umstellen.
 
-NEU - CLIFFHANGER: Zwischen Hook und Kern gibt es jetzt einen kurzen
-Cliffhanger-Satz (2-4 Wörter, z.B. "Aber es kommt noch besser...") -
-baut eine kleine Spannungslücke auf, bevor das Phänomen verraten wird.
+CLIFFHANGER: Zwischen Hook und Kern gibt es einen kurzen Cliffhanger-
+Satz (2-4 Wörter).
 
 FOLGEN-ZÄHLER: Jedes (echte, nicht Test-) Skript bekommt eine
-fortlaufende Folgen-Nummer (video_zaehler.json), die NIE zurückgesetzt
-wird.
-
-WACHSTUMSPHASE-FORMAT: 20-30 Sekunden Videos.
+fortlaufende Folgen-Nummer (video_zaehler.json).
 """
 
 import os
@@ -31,8 +30,6 @@ client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
 # ==========================================================================
 # TEST-MODUS: Auf False stellen, sobald der Kanal richtig loslegt!
-# Solange True: immer dasselbe Thema, kein Verbrauch aus dem Themenpool,
-# kein Hochzählen des Folgen-Zählers.
 # ==========================================================================
 TESTMODUS = True
 TEST_THEMA = "Warum wir eigene Fehler bei anderen sofort erkennen (Blinder Fleck)"
@@ -66,6 +63,7 @@ KANAL_NISCHE = "Alltagspsychologie - kognitive Verzerrungen, Gewohnheiten und so
 THEMEN_POOL_DATEI = "themen_pool.json"
 THEMEN_HISTORIE_DATEI = "themen_historie.json"
 ZAEHLER_DATEI = "video_zaehler.json"
+SKRIPT_DATEI = "pending_script.json"
 
 MINDEST_PUFFER = 8
 NEUE_THEMEN_PRO_NACHSCHUB = 20
@@ -108,8 +106,7 @@ WICHTIG:
   Sekunden Sprechzeit). Diese Mindestanzahl ist eine HARTE Vorgabe.
 - KEIN ausführliches Alltagsbeispiel - dafür ist bei dieser Kürze keine
   Zeit. Der "Aha-Moment" muss direkt im KERN stecken.
-- Der Cliffhanger MUSS wirklich kurz bleiben (2-4 Wörter) - er ist eine
-  Verzögerung, kein Inhalt.
+- Der Cliffhanger MUSS wirklich kurz bleiben (2-4 Wörter).
 - Der komplette CTA (Übergangssatz + Like/Folgen-Einladung) sollte
   insgesamt nicht mehr als ca. 20 Wörter umfassen.
 - Antworte NUR mit validem JSON, keine Markdown-Codeblöcke, kein Vorspann.
@@ -127,9 +124,6 @@ Format:
 
 
 def generiere_skript(thema: str) -> dict:
-    """Lässt Claude ein Skript generieren und prüft danach die tatsächliche
-    Wortanzahl. Falls das Skript trotz Vorgabe zu kurz ausfällt, wird bis
-    zu MAX_GENERIERUNGS_VERSUCHE-mal neu generiert."""
     for versuch in range(1, MAX_GENERIERUNGS_VERSUCHE + 1):
         response = client.messages.create(
             model="claude-sonnet-4-6",
@@ -244,11 +238,31 @@ def thema_ohne_wiederholung_waehlen() -> str:
     return gewaehltes_thema
 
 
+def vorhandenes_test_skript_pruefen() -> bool:
+    """Prüft, ob bereits ein Test-Skript mit demselben Test-Thema
+    existiert. Falls ja, muss nichts neu generiert werden."""
+    if not os.path.exists(SKRIPT_DATEI):
+        return False
+    with open(SKRIPT_DATEI, encoding="utf-8") as f:
+        vorhandene_daten = json.load(f)
+    return (
+        vorhandene_daten.get("testmodus") is True
+        and vorhandene_daten.get("thema_original") == TEST_THEMA
+    )
+
+
 def main():
     if TESTMODUS:
-        print(f"⚠️  TEST-MODUS AKTIV - nutze festes Test-Thema, Pool/Historie/Zähler bleiben unangetastet.")
+        if vorhandenes_test_skript_pruefen():
+            with open(SKRIPT_DATEI, encoding="utf-8") as f:
+                vorhandene_daten = json.load(f)
+            print("⚠️  TEST-MODUS AKTIV - bestehendes Test-Skript wird wiederverwendet, keine neue Generierung.")
+            print(f"Skript bleibt: {vorhandene_daten.get('titel')} (Folge #{vorhandene_daten.get('folge_nummer')})")
+            return
+
+        print("⚠️  TEST-MODUS AKTIV - generiere Test-Skript einmalig (wird danach wiederverwendet)...")
         thema = TEST_THEMA
-        folge_nummer = 0  # Platzhalter, wird nicht dauerhaft gespeichert
+        folge_nummer = 0
     else:
         thema = thema_ohne_wiederholung_waehlen()
         folge_nummer = naechste_folgen_nummer()
@@ -257,13 +271,13 @@ def main():
     daten["thema_original"] = thema
     daten["datum"] = datetime.now().strftime("%Y-%m-%d")
     daten["folge_nummer"] = folge_nummer
+    daten["testmodus"] = TESTMODUS
 
-    ausgabe_pfad = "pending_script.json"
-    with open(ausgabe_pfad, "w", encoding="utf-8") as f:
+    with open(SKRIPT_DATEI, "w", encoding="utf-8") as f:
         json.dump(daten, f, ensure_ascii=False, indent=2)
 
     print(f"Skript erstellt: {daten['titel']} (Folge #{daten['folge_nummer']})")
-    print(f"Gespeichert unter: {ausgabe_pfad}")
+    print(f"Gespeichert unter: {SKRIPT_DATEI}")
 
 
 if __name__ == "__main__":
