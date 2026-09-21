@@ -1,18 +1,20 @@
 """
 Setzt das finale Video zusammen aus:
-1. Bewegtem Hintergrund aus KI-Bildern (output/background.mp4)
+1. Bewegtem Hintergrund aus KI-Bildern (output/background.mp4) - jetzt
+   mit Loop-Ende (blendet am Schluss zurück zum Hook-Bild)
 2. Wort-für-Wort animierten Karaoke-Untertiteln (output/captions.ass)
 3. Logo-Overlay (assets/logo.png, optional)
-4. Tonspur: output/voiceover_full.mp3 (komplettes Azure-TTS-Voiceover)
-5. NEU - Sound-Effekt (assets/pop_sound.wav): kurzer, prozedural
-   erzeugter "Whoosh-Pop"-Sound, synchron zum Effekt-Moment (wenn der
-   Fachbegriff aufploppt) untergemischt.
+4. Tonspur: output/voiceover_full.mp3
+5. Sound-Effekt (assets/pop_sound.wav) beim Effekt-Moment
 
-SERIEN-BADGE: Kleines "Fakt #N"-Badge oben links - AKTUELL DEAKTIVIERT
-(BADGE_AKTIV = False).
+NEU - AUDIO-PADDING FÜRS LOOP-ENDE: Das Hintergrund-Video ist durch das
+Loop-Ende jetzt ein kleines Stück länger als die reine Sprechzeit.
+Früher hätte "-shortest" dieses Extra-Stück einfach abgeschnitten.
+Jetzt wird die Tonspur stattdessen mit Stille bis zur exakten
+Hintergrund-Länge aufgefüllt (apad-Filter), damit der Loop-Teil am Ende
+sichtbar bleibt.
 
-EFFEKT-MOMENT: Der Fachbegriff der Folge poppt mit Bounce-Animation +
-Sound-Effekt auf, wenn der Kern-Teil beginnt.
+SERIEN-BADGE: Kleines "Fakt #N"-Badge oben links - AKTUELL DEAKTIVIERT.
 """
 
 import subprocess
@@ -28,8 +30,8 @@ POP_SOUND = "assets/pop_sound.wav"
 FERTIGES_VIDEO = "output/video_final.mp4"
 
 FONT_PFAD = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-POP_DAUER = 2.5  # Sekunden, wie lange der Fachbegriff insgesamt sichtbar bleibt
-POP_SOUND_LAUTSTAERKE = 0.55  # relative Lautstärke des Sound-Effekts (1.0 = unverändert)
+POP_DAUER = 2.5
+POP_SOUND_LAUTSTAERKE = 0.55
 
 BADGE_AKTIV = False
 
@@ -77,6 +79,7 @@ def video_zusammensetzen():
 
     folge_nummer = skript_daten.get("folge_nummer")
     kern_start_zeit = meta.get("kern_start_zeit")
+    hintergrund_gesamtdauer = meta.get("hintergrund_gesamtdauer", meta.get("duration"))
     fachbegriff = fachbegriff_ermitteln(skript_daten)
     pop_sound_vorhanden = os.path.exists(POP_SOUND) and kern_start_zeit is not None
 
@@ -128,19 +131,22 @@ def video_zusammensetzen():
     else:
         finaler_video_output = "[vout1]"
 
-    # Audio: Voiceover + (falls vorhanden) zeitversetzter Sound-Effekt
-    # genau beim Effekt-Moment zusammenmischen
+    vorstufen_filter.append(
+        f"[1:a]apad=whole_dur={hintergrund_gesamtdauer:.3f}[audio_gepolstert]"
+    )
+    aktuelles_audio_label = "audio_gepolstert"
+
     if pop_sound_vorhanden:
         delay_ms = int(kern_start_zeit * 1000)
         vorstufen_filter.append(
             f"[{pop_sound_index}:a]adelay={delay_ms}:all=1,volume={POP_SOUND_LAUTSTAERKE}[popsound]"
         )
         vorstufen_filter.append(
-            f"[1:a][popsound]amix=inputs=2:duration=first:normalize=0[aout]"
+            f"[{aktuelles_audio_label}][popsound]amix=inputs=2:duration=first:normalize=0[aout]"
         )
         finaler_audio_output = "[aout]"
     else:
-        finaler_audio_output = "1:a"
+        finaler_audio_output = f"[{aktuelles_audio_label}]"
 
     filter_complex = ";".join(vorstufen_filter)
 
@@ -150,8 +156,8 @@ def video_zusammensetzen():
         "-filter_complex", filter_complex,
         "-map", finaler_video_output,
         "-map", finaler_audio_output,
+        "-t", f"{hintergrund_gesamtdauer:.3f}",
         "-c:v", "libx264", "-c:a", "aac",
-        "-shortest",
         FERTIGES_VIDEO,
     ]
     subprocess.run(befehl, check=True)
