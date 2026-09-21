@@ -1,11 +1,12 @@
 {
-  "titel": "Blinder Fleck – eigene Fehler bei anderen sehen",
-  "hook": "Nervt dich jemand gerade total – weil er immer so ungeduldig ist?",
-  "cliffhanger": "Schlechte Neuigkeiten:",
-  "kern": "Das nennt sich 'Blinder Fleck' – und der steckt in jedem von uns. Unser Gehirn ist ziemlich gut darin, bei anderen genau die Fehler zu erkennen, die wir selbst haben. Der Grund: Wir kennen diese Verhaltensweisen unbewusst so gut, weil wir sie täglich bei uns selbst produzieren. Nur nach innen – da schaut das Gehirn lieber weg.",
-  "cta": "Autsch, das saß. Lass gerne ein Like da und folge mir für mehr Psychologie-Wissen.",
-  "vollstaendiges_skript": "Nervt dich jemand gerade total – weil er immer so ungeduldig ist? Schlechte Neuigkeiten: Das nennt sich 'Blinder Fleck' – und der steckt in jedem von uns. Unser Gehirn ist ziemlich gut darin, bei anderen genau die Fehler zu erkennen, die wir selbst haben. Der Grund: Wir kennen diese Verhaltensweisen unbewusst so gut, weil wir sie täglich bei uns selbst produzieren. Nur nach innen – da schaut das Gehirn lieber weg. Autsch, das saß. Lass gerne ein Like da und folge mir für mehr Psychologie-Wissen.",
+  "titel": "Blinder Fleck – Fremde Fehler, eigene Blindheit",
+  "hook": "Warum nervt es dich, wenn andere genau das tun, was du selbst ständig machst?",
+  "cliffhanger": "Der Grund ist fies:",
+  "kern": "Das nennt sich Bias Blind Spot – auf Deutsch: du siehst die Fehler anderer messerscharf, aber deine eigenen bleiben unsichtbar. Unser Gehirn ist darauf ausgelegt, uns selbst als rationaler und fairer wahrzunehmen als den Rest der Welt. Was uns an anderen stört, ist oft genau das, was wir an uns selbst nicht wahrhaben wollen.",
+  "cta": "Willkommen im Club der blinden Spiegel. Lass gerne ein Like da und folge mir für mehr Psychologie-Wissen.",
+  "vollstaendiges_skript": "Warum nervt es dich, wenn andere genau das tun, was du selbst ständig machst? Der Grund ist fies: Das nennt sich Bias Blind Spot – auf Deutsch: du siehst die Fehler anderer messerscharf, aber deine eigenen bleiben unsichtbar. Unser Gehirn ist darauf ausgelegt, uns selbst als rationaler und fairer wahrzunehmen als den Rest der Welt. Was uns an anderen stört, ist oft genau das, was wir an uns selbst nicht wahrhaben wollen. Willkommen im Club der blinden Spiegel. Lass gerne ein Like da und folge mir für mehr Psychologie-Wissen.",
   "thema_original": "Warum wir eigene Fehler bei anderen sofort erkennen (Blinder Fleck)",
   "datum": "2026-09-21",
-  "folge_nummer": 0
+  "folge_nummer": 0,
+  "testmodus": true
 }
