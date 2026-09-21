@@ -2,20 +2,19 @@
 Erzeugt den Hintergrund: PRO SKRIPT-ABSCHNITT wird ein eigenes,
 thematisch passendes KI-Bild generiert (GPT Image 2).
 
+NEU - CLIFFHANGER IM HOOK-ABSCHNITT: Der kurze Cliffhanger-Satz ("Aber
+es kommt noch besser...") wird für Timing und Bild-Prompt mit dem Hook
+zusammengefasst (bleibt visuell dasselbe Bild wie der Hook - für 2-4
+Wörter lohnt sich kein eigenes Bild).
+
 Der "Kern"-Abschnitt wird automatisch anhand seiner Sätze in mehrere
 Teilbilder aufgeteilt (KERN_TEILE_ANZAHL).
 
-HOOK-ZOOM: Das allererste Bild (Hook) bekommt einen längeren,
-langsameren Zoom.
+HOOK-ZOOM: Das allererste Bild bekommt einen längeren, langsameren Zoom.
+WEICHE ÜBERGÄNGE (CROSSFADE): Bilder werden sanft ineinander übergeblendet.
 
-WEICHE ÜBERGÄNGE (CROSSFADE): Die Bilder werden sanft ineinander
-übergeblendet (xfade-Filter, ~0,35s).
-
-NEU - TIMING FÜR EFFEKT-MOMENT: Der Zeitpunkt, an dem der Kern-Teil
-beginnt (nach dem Hook), wird jetzt zusätzlich in video_meta.json
-gespeichert (Feld "kern_start_zeit"). compose_video.py nutzt das, um
-den Fachbegriff der Folge genau zu diesem Zeitpunkt groß in der
-Bildmitte aufploppen zu lassen ("Effekt-Moment").
+TIMING FÜR EFFEKT-MOMENT: Der Zeitpunkt, an dem der Kern-Teil beginnt,
+wird in video_meta.json gespeichert (Feld "kern_start_zeit").
 """
 
 import os
@@ -68,7 +67,13 @@ def kern_in_teile_splitten(kern_text: str, anzahl_teile: int = KERN_TEILE_ANZAHL
 
 
 def abschnitte_erstellen(skript_daten: dict) -> list:
-    abschnitte = [("Hook / einleitende Frage", skript_daten["hook"])]
+    """Baut die Liste aller Bild-Abschnitte. Der Cliffhanger wird mit
+    dem Hook zusammengefasst (kein eigenes Bild für 2-4 Wörter)."""
+    hook_text = skript_daten["hook"].strip()
+    cliffhanger_text = skript_daten.get("cliffhanger", "").strip()
+    kombinierter_hook = f"{hook_text} {cliffhanger_text}".strip()
+
+    abschnitte = [("Hook / einleitende Frage", kombinierter_hook)]
 
     kern_teile = kern_in_teile_splitten(skript_daten["kern"])
     for i, teil_text in enumerate(kern_teile, start=1):
@@ -199,9 +204,6 @@ def main():
     print(f"Setze Hintergrund-Video aus {len(bild_pfade_und_dauern)} Bildern zusammen (Crossfade + Hook-Zoom)...")
     hintergrund_video_erstellen(bild_pfade_und_dauern, "output/background.mp4")
 
-    # Zeitpunkt, an dem der Kern-Teil beginnt (= Ende des Hook-Bildes,
-    # abzüglich der Crossfade-Überlappung) - für den Effekt-Moment in
-    # compose_video.py
     kern_start_zeit = max(0.0, abschnitts_dauern[0] - CROSSFADE_DAUER)
     meta["kern_start_zeit"] = kern_start_zeit
     with open("output/video_meta.json", "w", encoding="utf-8") as f:
@@ -211,7 +213,5 @@ def main():
     print(f"Hintergrund erstellt: ~{gesamt:.1f}s (Kern startet bei ~{kern_start_zeit:.1f}s)")
 
 
-if __name__ == "__main__":
-    main()
 if __name__ == "__main__":
     main()
