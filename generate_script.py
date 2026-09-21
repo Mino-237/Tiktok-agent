@@ -3,15 +3,22 @@ Generiert täglich (mehrmals täglich, manuell gestartet) ein Thema +
 Kurz-Skript für die Serie "Warum tun wir das?". Nutzt die Anthropic API
 (Claude), um einen Rohentwurf zu erstellen.
 
-FOLGEN-ZÄHLER: Jedes Skript bekommt eine fortlaufende Folgen-Nummer
-(video_zaehler.json), die NIE zurückgesetzt wird.
+NEU - TEST-MODUS: Solange TESTMODUS = True ist, wird IMMER dasselbe
+Test-Thema genutzt und der Themenpool/die Historie/der Folgen-Zähler
+werden NICHT angerührt (keine Dateien geschrieben). Verhindert, dass
+beim Testen der Video-Pipeline unnötig Themen "verbraucht" werden oder
+die Folgen-Nummerierung vorzeitig hochzählt. Vor dem echten Start auf
+TESTMODUS = False umstellen.
 
-NEU - HUMORVOLLERER CTA-ÜBERGANG: Der kurze Übergangssatz vor der
-Like-/Folgen-Einladung soll jetzt bewusst humorvoll/pointiert
-formuliert werden, statt einer neutralen Reaktion.
+NEU - CLIFFHANGER: Zwischen Hook und Kern gibt es jetzt einen kurzen
+Cliffhanger-Satz (2-4 Wörter, z.B. "Aber es kommt noch besser...") -
+baut eine kleine Spannungslücke auf, bevor das Phänomen verraten wird.
 
-WACHSTUMSPHASE-FORMAT: Verschlanktes 3-Teile-Format (Hook/Kern/CTA) für
-20-30 Sekunden Videos.
+FOLGEN-ZÄHLER: Jedes (echte, nicht Test-) Skript bekommt eine
+fortlaufende Folgen-Nummer (video_zaehler.json), die NIE zurückgesetzt
+wird.
+
+WACHSTUMSPHASE-FORMAT: 20-30 Sekunden Videos.
 """
 
 import os
@@ -21,6 +28,15 @@ from datetime import datetime
 from anthropic import Anthropic
 
 client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+
+# ==========================================================================
+# TEST-MODUS: Auf False stellen, sobald der Kanal richtig loslegt!
+# Solange True: immer dasselbe Thema, kein Verbrauch aus dem Themenpool,
+# kein Hochzählen des Folgen-Zählers.
+# ==========================================================================
+TESTMODUS = True
+TEST_THEMA = "Warum wir eigene Fehler bei anderen sofort erkennen (Blinder Fleck)"
+# ==========================================================================
 
 THEMEN_POOL_START = [
     "Warum du dir selbst öfter etwas vormachst als anderen (Selbsttäuschung)",
@@ -61,11 +77,15 @@ SYSTEM_PROMPT = """Du hilfst dabei, ein KURZES 20-30 Sekunden Skript für ein Ti
 namens "Warum tun wir das?" zu entwerfen. Das Format erklärt Alltagspsychologie
 schnell, knackig und auf den Punkt - ideal für schnelles Scrollen.
 
-STRUKTUR (immer einhalten, nur 3 Teile - Zeit ist knapp!):
+STRUKTUR (immer einhalten):
 1. HOOK: Eine provokante Frage direkt an den Zuschauer (1 kurzer Satz)
-2. KERN: Das psychologische Phänomen benennen UND in einem Fluss erklären,
+2. CLIFFHANGER: Ein SEHR KURZER Satz (2-4 Wörter), der Spannung aufbaut,
+   BEVOR das Phänomen verraten wird, z.B. "Aber es kommt noch besser...",
+   "Der Grund ist fies:", "Und jetzt wird's interessant." (abwechslungsreich
+   formulieren, nicht immer dieselbe Floskel)
+3. KERN: Das psychologische Phänomen benennen UND in einem Fluss erklären,
    warum es passiert - kompakt, ohne ausführliches Beispiel (3-4 Sätze)
-3. CTA: Besteht aus ZWEI kurzen Teilen, die sich natürlich aneinanderreihen:
+4. CTA: Besteht aus ZWEI kurzen Teilen, die sich natürlich aneinanderreihen:
    a) Ein KURZER, HUMORVOLLER/POINTIERTER Übergangssatz (3-6 Wörter) -
       eine augenzwinkernde, leicht selbstironische Reaktion auf das
       gerade Erklärte. Nutze Wortwitz, Übertreibung oder eine
@@ -88,6 +108,8 @@ WICHTIG:
   Sekunden Sprechzeit). Diese Mindestanzahl ist eine HARTE Vorgabe.
 - KEIN ausführliches Alltagsbeispiel - dafür ist bei dieser Kürze keine
   Zeit. Der "Aha-Moment" muss direkt im KERN stecken.
+- Der Cliffhanger MUSS wirklich kurz bleiben (2-4 Wörter) - er ist eine
+  Verzögerung, kein Inhalt.
 - Der komplette CTA (Übergangssatz + Like/Folgen-Einladung) sollte
   insgesamt nicht mehr als ca. 20 Wörter umfassen.
 - Antworte NUR mit validem JSON, keine Markdown-Codeblöcke, kein Vorspann.
@@ -96,9 +118,10 @@ Format:
 {
   "titel": "kurzer Arbeitstitel",
   "hook": "...",
+  "cliffhanger": "... (SEHR kurz, 2-4 Wörter)",
   "kern": "...",
-  "cta": "... (humorvoller Übergangssatz + Like-/Folgen-Einladung, alles in einem Feld, als zwei durch einen Satzpunkt getrennte Sätze)",
-  "vollstaendiges_skript": "Der komplette Text am Stück, so wie er gesprochen werden soll"
+  "cta": "... (humorvoller Übergangssatz + Like-/Folgen-Einladung, alles in einem Feld)",
+  "vollstaendiges_skript": "Der komplette Text am Stück (Hook + Cliffhanger + Kern + CTA), so wie er gesprochen werden soll"
 }
 """
 
@@ -222,11 +245,18 @@ def thema_ohne_wiederholung_waehlen() -> str:
 
 
 def main():
-    thema = thema_ohne_wiederholung_waehlen()
+    if TESTMODUS:
+        print(f"⚠️  TEST-MODUS AKTIV - nutze festes Test-Thema, Pool/Historie/Zähler bleiben unangetastet.")
+        thema = TEST_THEMA
+        folge_nummer = 0  # Platzhalter, wird nicht dauerhaft gespeichert
+    else:
+        thema = thema_ohne_wiederholung_waehlen()
+        folge_nummer = naechste_folgen_nummer()
+
     daten = generiere_skript(thema)
     daten["thema_original"] = thema
     daten["datum"] = datetime.now().strftime("%Y-%m-%d")
-    daten["folge_nummer"] = naechste_folgen_nummer()
+    daten["folge_nummer"] = folge_nummer
 
     ausgabe_pfad = "pending_script.json"
     with open(ausgabe_pfad, "w", encoding="utf-8") as f:
