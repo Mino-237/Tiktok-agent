@@ -2,20 +2,17 @@
 Erzeugt die KOMPLETTE Sprachausgabe (Hook + Cliffhanger + Kern + CTA)
 über die Azure Text-to-Speech-API.
 
-NEU - CLIFFHANGER MIT PAUSE: Nach dem kurzen Cliffhanger-Satz ("Aber es
-kommt noch besser...") wird jetzt eine kurze Spannungspause (450ms)
-eingefügt, bevor der Kern-Teil (die eigentliche Erklärung) beginnt -
-verstärkt die Spannungslücke zusätzlich zum reinen Text-Trick.
-
-CTA-PAUSE: Zwischen dem humorvollen Übergangssatz und der Like/Folgen-
-Einladung bleibt weiterhin eine 600ms-Pause.
-
-Azure-Doku: https://learn.microsoft.com/azure/ai-services/speech-service/rest-text-to-speech
+TEST-CACHE: Solange pending_script.json "testmodus": true enthält, wird
+das erzeugte Voiceover in test_cache/ zwischengespeichert. Bei
+zukünftigen Testläufen wird es von dort wiederverwendet, statt erneut
+bei Azure angefragt zu werden - Ton bleibt zwischen Testläufen exakt
+gleich, damit sich Video-Effekt-Änderungen fair vergleichen lassen.
 """
 
 import os
 import re
 import json
+import shutil
 import subprocess
 import requests
 
@@ -25,8 +22,12 @@ AZURE_SPEECH_REGION = os.environ["AZURE_SPEECH_REGION"]
 STIMME = "de-DE-FlorianMultilingualNeural"
 TTS_URL = f"https://{AZURE_SPEECH_REGION}.tts.speech.microsoft.com/cognitiveservices/v1"
 
-CLIFFHANGER_PAUSE_MS = 450  # Spannungspause nach dem Cliffhanger-Satz
-CTA_PAUSE_MS = 600  # Pause zwischen Übergangssatz und Like/Folgen-Einladung im CTA
+CLIFFHANGER_PAUSE_MS = 450
+CTA_PAUSE_MS = 600
+
+TEST_CACHE_ORDNER = "test_cache"
+CACHE_AUDIO_PFAD = os.path.join(TEST_CACHE_ORDNER, "voiceover_full.mp3")
+CACHE_META_PFAD = os.path.join(TEST_CACHE_ORDNER, "voiceover_meta.json")
 
 
 def escape_fuer_ssml(text: str) -> str:
@@ -38,8 +39,6 @@ def escape_fuer_ssml(text: str) -> str:
 
 
 def cta_mit_pause_aufbauen(cta_text: str) -> str:
-    """Teilt den CTA am ersten Satzende auf (Übergangssatz | Rest) und
-    fügt dazwischen eine SSML-Pause ein."""
     teile = re.split(r'(?<=[.!?])\s+', cta_text.strip(), maxsplit=1)
     if len(teile) != 2:
         return escape_fuer_ssml(cta_text.strip())
@@ -103,11 +102,27 @@ def main():
     with open("pending_script.json", encoding="utf-8") as f:
         daten = json.load(f)
 
-    ssml_text_inhalt = vollstaendigen_ssml_text_erstellen(daten)
-    print("Generiere Voiceover für das komplette Skript (Azure TTS, Florian, mit Cliffhanger- und CTA-Pause)...")
-    voiceover_generieren(ssml_text_inhalt, "output/voiceover_full.mp3")
+    testmodus = daten.get("testmodus", False)
+    os.makedirs("output", exist_ok=True)
 
-    dauer = audio_dauer_ermitteln("output/voiceover_full.mp3")
+    if testmodus and os.path.exists(CACHE_AUDIO_PFAD) and os.path.exists(CACHE_META_PFAD):
+        print("⚠️  TEST-MODUS: nutze gecachtes Voiceover (keine neue Azure-Anfrage).")
+        shutil.copy(CACHE_AUDIO_PFAD, "output/voiceover_full.mp3")
+        with open(CACHE_META_PFAD, encoding="utf-8") as f:
+            cache_daten = json.load(f)
+        dauer = cache_daten["duration"]
+    else:
+        ssml_text_inhalt = vollstaendigen_ssml_text_erstellen(daten)
+        print("Generiere Voiceover für das komplette Skript (Azure TTS, Florian)...")
+        voiceover_generieren(ssml_text_inhalt, "output/voiceover_full.mp3")
+        dauer = audio_dauer_ermitteln("output/voiceover_full.mp3")
+
+        if testmodus:
+            os.makedirs(TEST_CACHE_ORDNER, exist_ok=True)
+            shutil.copy("output/voiceover_full.mp3", CACHE_AUDIO_PFAD)
+            with open(CACHE_META_PFAD, "w", encoding="utf-8") as f:
+                json.dump({"duration": dauer}, f)
+            print("Test-Voiceover im Cache gespeichert für zukünftige Testläufe.")
 
     with open("output/video_meta.json", "w", encoding="utf-8") as f:
         json.dump({"duration": dauer}, f)
