@@ -1,13 +1,14 @@
 """
-Erzeugt die KOMPLETTE Sprachausgabe (Hook + Kern + CTA - das ganze
-Skript) über die Azure Text-to-Speech-API (REST-Endpunkt).
+Erzeugt die KOMPLETTE Sprachausgabe (Hook + Cliffhanger + Kern + CTA)
+über die Azure Text-to-Speech-API.
 
-Nutzt die Stimme de-DE-FlorianMultilingualNeural.
+NEU - CLIFFHANGER MIT PAUSE: Nach dem kurzen Cliffhanger-Satz ("Aber es
+kommt noch besser...") wird jetzt eine kurze Spannungspause (450ms)
+eingefügt, bevor der Kern-Teil (die eigentliche Erklärung) beginnt -
+verstärkt die Spannungslücke zusätzlich zum reinen Text-Trick.
 
-NEU - PAUSE ZWISCHEN DEN CTA-SÄTZEN: Der CTA besteht aus zwei Sätzen
-(humorvoller Übergangssatz + Like/Folgen-Einladung). Damit die beiden
-nicht ohne Luft ineinander übergehen, wird zwischen ihnen jetzt eine
-kurze SSML-Sprechpause (600ms) eingefügt.
+CTA-PAUSE: Zwischen dem humorvollen Übergangssatz und der Like/Folgen-
+Einladung bleibt weiterhin eine 600ms-Pause.
 
 Azure-Doku: https://learn.microsoft.com/azure/ai-services/speech-service/rest-text-to-speech
 """
@@ -24,6 +25,7 @@ AZURE_SPEECH_REGION = os.environ["AZURE_SPEECH_REGION"]
 STIMME = "de-DE-FlorianMultilingualNeural"
 TTS_URL = f"https://{AZURE_SPEECH_REGION}.tts.speech.microsoft.com/cognitiveservices/v1"
 
+CLIFFHANGER_PAUSE_MS = 450  # Spannungspause nach dem Cliffhanger-Satz
 CTA_PAUSE_MS = 600  # Pause zwischen Übergangssatz und Like/Folgen-Einladung im CTA
 
 
@@ -37,8 +39,7 @@ def escape_fuer_ssml(text: str) -> str:
 
 def cta_mit_pause_aufbauen(cta_text: str) -> str:
     """Teilt den CTA am ersten Satzende auf (Übergangssatz | Rest) und
-    fügt dazwischen eine SSML-Pause ein. Falls der CTA nur aus einem
-    Satz besteht, wird er unverändert zurückgegeben."""
+    fügt dazwischen eine SSML-Pause ein."""
     teile = re.split(r'(?<=[.!?])\s+', cta_text.strip(), maxsplit=1)
     if len(teile) != 2:
         return escape_fuer_ssml(cta_text.strip())
@@ -50,9 +51,18 @@ def cta_mit_pause_aufbauen(cta_text: str) -> str:
 
 def vollstaendigen_ssml_text_erstellen(daten: dict) -> str:
     hook = escape_fuer_ssml(daten["hook"].strip())
+    cliffhanger = daten.get("cliffhanger", "").strip()
     kern = escape_fuer_ssml(daten["kern"].strip())
     cta = cta_mit_pause_aufbauen(daten["cta"])
-    return f"{hook} {kern} {cta}"
+
+    teile = [hook]
+    if cliffhanger:
+        cliffhanger_pause = f'<break time="{CLIFFHANGER_PAUSE_MS}ms"/>'
+        teile.append(f"{escape_fuer_ssml(cliffhanger)}{cliffhanger_pause}")
+    teile.append(kern)
+    teile.append(cta)
+
+    return " ".join(teile)
 
 
 def voiceover_generieren(ssml_text_inhalt: str, ziel_pfad: str):
@@ -79,7 +89,6 @@ def voiceover_generieren(ssml_text_inhalt: str, ziel_pfad: str):
 
 
 def audio_dauer_ermitteln(pfad: str) -> float:
-    """Ermittelt die Dauer einer Audiodatei in Sekunden via ffprobe."""
     befehl = [
         "ffprobe", "-v", "error",
         "-show_entries", "format=duration",
@@ -95,7 +104,7 @@ def main():
         daten = json.load(f)
 
     ssml_text_inhalt = vollstaendigen_ssml_text_erstellen(daten)
-    print("Generiere Voiceover für das komplette Skript (Azure TTS, Florian, mit CTA-Pause)...")
+    print("Generiere Voiceover für das komplette Skript (Azure TTS, Florian, mit Cliffhanger- und CTA-Pause)...")
     voiceover_generieren(ssml_text_inhalt, "output/voiceover_full.mp3")
 
     dauer = audio_dauer_ermitteln("output/voiceover_full.mp3")
