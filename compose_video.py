@@ -34,7 +34,7 @@ FONT_PFAD = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 POP_DAUER = 2.5
 POP_SOUND_LAUTSTAERKE = 0.55
 
-BADGE_AKTIV = True
+BADGE_AKTIV = False
 
 BOUNCE_START_GROESSE = 20
 BOUNCE_UEBERSCHWINGEN = 82
@@ -91,6 +91,16 @@ def echten_start_zeitpunkt_suchen(fachbegriff: str, fallback: float) -> float:
         for wort in woerter:
             if wort_passt(erstes_wort, wort["text"]):
                 return wort["start"]
+
+        # Sicherheitsnetz: Whisper zerlegt ungewöhnliche Wörter manchmal
+        # versehentlich in zwei Teile (z.B. "Re" + "Aktanz" statt
+        # "Reaktanz"). Prüfe deshalb zusätzlich, ob zwei aufeinander-
+        # folgende Wörter ZUSAMMEN den gesuchten Begriff ergeben.
+        for i in range(len(woerter) - 1):
+            kombiniert = wort_normalisieren(woerter[i]["text"]) + wort_normalisieren(woerter[i + 1]["text"])
+            if erstes_wort in kombiniert or (len(erstes_wort) >= 4 and erstes_wort[:4] in kombiniert):
+                return woerter[i]["start"]
+
         return fallback
 
     zweites_wort = fachbegriff_teile[1]
