@@ -57,14 +57,45 @@ def wort_normalisieren(text: str) -> str:
     return re.sub(r'[^\wäöüß]', '', text.lower())
 
 
+def levenshtein_distanz(a: str, b: str) -> int:
+    """Zählt, wie viele Einzelbuchstaben-Änderungen nötig wären, um von
+    Wort a zu Wort b zu kommen - toleriert kleinere Whisper-
+    Erkennungsfehler bei ungewöhnlichen Wörtern (z.B. 'Riktanz' statt
+    'Reaktanz')."""
+    if a == b:
+        return 0
+    la, lb = len(a), len(b)
+    if la == 0:
+        return lb
+    if lb == 0:
+        return la
+    vorherige_zeile = list(range(lb + 1))
+    for i in range(1, la + 1):
+        aktuelle_zeile = [i] + [0] * lb
+        for j in range(1, lb + 1):
+            kosten = 0 if a[i - 1] == b[j - 1] else 1
+            aktuelle_zeile[j] = min(
+                vorherige_zeile[j] + 1,
+                aktuelle_zeile[j - 1] + 1,
+                vorherige_zeile[j - 1] + kosten,
+            )
+        vorherige_zeile = aktuelle_zeile
+    return vorherige_zeile[lb]
+
+
 def wort_passt(gesucht_norm: str, kandidat_text: str) -> bool:
     kandidat_norm = wort_normalisieren(kandidat_text)
     if not kandidat_norm:
         return False
     if kandidat_norm == gesucht_norm:
         return True
-    if len(gesucht_norm) >= 4 and gesucht_norm[:4] in kandidat_norm:
-        return True
+    # Toleranz für Whisper-Erkennungsfehler bei ungewöhnlichen/
+    # fremdsprachigen Wörtern - erlaubt ein paar Buchstaben-Abweichungen,
+    # proportional zur Wortlänge
+    max_abstand = max(2, len(gesucht_norm) // 3)
+    if abs(len(kandidat_norm) - len(gesucht_norm)) <= max_abstand:
+        if levenshtein_distanz(gesucht_norm, kandidat_norm) <= max_abstand:
+            return True
     return False
 
 
@@ -95,11 +126,13 @@ def echten_start_zeitpunkt_suchen(fachbegriff: str, fallback: float) -> float:
         # Sicherheitsnetz: Whisper zerlegt ungewöhnliche Wörter manchmal
         # versehentlich in zwei Teile (z.B. "Re" + "Aktanz" statt
         # "Reaktanz"). Prüfe deshalb zusätzlich, ob zwei aufeinander-
-        # folgende Wörter ZUSAMMEN den gesuchten Begriff ergeben.
+        # folgende Wörter ZUSAMMEN (ähnlich) den gesuchten Begriff ergeben.
         for i in range(len(woerter) - 1):
             kombiniert = wort_normalisieren(woerter[i]["text"]) + wort_normalisieren(woerter[i + 1]["text"])
-            if erstes_wort in kombiniert or (len(erstes_wort) >= 4 and erstes_wort[:4] in kombiniert):
-                return woerter[i]["start"]
+            max_abstand = max(2, len(erstes_wort) // 3)
+            if kombiniert and abs(len(kombiniert) - len(erstes_wort)) <= max_abstand:
+                if levenshtein_distanz(erstes_wort, kombiniert) <= max_abstand:
+                    return woerter[i]["start"]
 
         return fallback
 
