@@ -1,12 +1,12 @@
 name: "1 - Skript generieren"
 
 on:
-   schedule:
+  # schedule:
     # Läuft jeden Tag um 15:00 UTC = 17:00 Uhr deutsche Sommerzeit.
     # Ab Ende Oktober (Winterzeit) auf "0 16 * * *" ändern, für 17:00 Uhr.
-     - cron: "0 6 * * *"  # 08.00
-     - cron: "0 15 * * *" # 17.00
-     - cron: "0 18 * * *" # 19.00
+    # - cron: "0 6 * * *"  # 08.00
+    # - cron: "0 15 * * *" # 17.00
+    # - cron: "0 18 * * *" # 19.00
    workflow_dispatch:
     # Erlaubt manuelles Starten über den "Run workflow"-Button, z.B. zum Testen.
 
