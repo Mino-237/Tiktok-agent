@@ -31,7 +31,7 @@ client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 # ==========================================================================
 # TEST-MODUS: Auf False stellen, sobald der Kanal richtig loslegt!
 # ==========================================================================
-TESTMODUS = True
+TESTMODUS = False
 TEST_THEMA = "Warum wir eigene Fehler bei anderen sofort erkennen (Blinder Fleck)"
 # ==========================================================================
 
