@@ -3,24 +3,24 @@ Generiert täglich (mehrmals täglich, manuell gestartet) ein Thema +
 Kurz-Skript für die Serie "Warum tun wir das?". Nutzt die Anthropic API
 (Claude), um einen Rohentwurf zu erstellen.
 
-TEST-MODUS (überarbeitet): Solange TESTMODUS = True ist, wird das
-Test-Thema nur BEIM ALLERERSTEN LAUF generiert. Existiert bereits ein
-pending_script.json mit demselben Test-Thema (Feld "testmodus": true),
-wird es unverändert wiederverwendet - kein erneuter Claude-Aufruf, kein
-neuer Text. So bleibt der Skript-Text über mehrere Testläufe hinweg
-exakt gleich, und generate_voiceover.py / generate_background_image.py
-können ihrerseits Ton und Bilder cachen (siehe dort) - für einen
-wirklich fairen Vergleich beim Testen von Video-Effekten. Vor dem
-echten Start auf TESTMODUS = False umstellen.
+NEU - EXAKTER FACHBEGRIFF IM KERN: Claude hat den Fachbegriff im
+Kern-Teil bisher manchmal anders benannt als in der Themen-Klammer
+vorgegeben (z.B. "Bias Blind Spot" statt "Blinder Fleck") - meist die
+bekanntere englische Fachbezeichnung. Das Problem: Der Effekt-Moment in
+compose_video.py sucht nach genau dem Begriff aus der Klammer in der
+echten Sprachaufnahme - wenn er dort nie wörtlich vorkommt, kann der
+Effekt-Moment nicht an der richtigen Stelle ausgelöst werden. Jetzt
+wird der Fachbegriff aus dem Thema separat extrahiert und Claude
+bekommt eine explizite Anweisung, genau diesen Begriff im Kern zu
+verwenden - UND im CTA-Übergangssatz KEIN Wort daraus wiederzuverwenden
+(verhindert falsche Treffer an späterer, falscher Stelle).
 
-CLIFFHANGER: Zwischen Hook und Kern gibt es einen kurzen Cliffhanger-
-Satz (2-4 Wörter).
-
-FOLGEN-ZÄHLER: Jedes (echte, nicht Test-) Skript bekommt eine
-fortlaufende Folgen-Nummer (video_zaehler.json).
+TEST-MODUS: Solange TESTMODUS = True ist, wird das Test-Thema nur beim
+allerersten Lauf generiert und danach wiederverwendet.
 """
 
 import os
+import re
 import json
 import random
 from datetime import datetime
@@ -82,7 +82,12 @@ STRUKTUR (immer einhalten):
    "Der Grund ist fies:", "Und jetzt wird's interessant." (abwechslungsreich
    formulieren, nicht immer dieselbe Floskel)
 3. KERN: Das psychologische Phänomen benennen UND in einem Fluss erklären,
-   warum es passiert - kompakt, ohne ausführliches Beispiel (3-4 Sätze)
+   warum es passiert - kompakt, ohne ausführliches Beispiel (3-4 Sätze).
+   WICHTIG: Der im Thema angegebene deutsche Fachbegriff MUSS hier
+   WORTWÖRTLICH genannt werden (nicht durch eine andere Bezeichnung,
+   z.B. eine englische Fachbezeichnung, ersetzen oder umschreiben) -
+   dieser exakte Begriff wird später für eine visuelle Hervorhebung im
+   Video gebraucht und muss deshalb genau so vorkommen, wie vorgegeben.
 4. CTA: Besteht aus ZWEI kurzen Teilen, die sich natürlich aneinanderreihen:
    a) Ein KURZER, HUMORVOLLER/POINTIERTER Übergangssatz (3-6 Wörter) -
       eine augenzwinkernde, leicht selbstironische Reaktion auf das
@@ -94,6 +99,10 @@ STRUKTUR (immer einhalten):
       - "Manipuliert - und zwar von dir selbst."
       - "Tja, dumm gelaufen, liebes Gehirn."
       - "Willkommen im Club der Selbstbetrüger."
+      WICHTIG: Der Übergangssatz darf NICHT nochmal ein Wort aus dem
+      Fachbegriff wiederverwenden (z.B. bei "Blinder Fleck" kein
+      "blind"/"blinden"/"Blindheit" im CTA einbauen) - das würde später
+      mit der Fachbegriff-Erkennung im Video kollidieren.
    b) Eine Like-und-Folgen-Einladung, angelehnt an genau diesen Wortlaut:
       "Lass gerne ein Like da und folge mir für mehr Psychologie-
       Wissen." Der Wortlaut darf leicht variiert werden, aber die
@@ -123,14 +132,34 @@ Format:
 """
 
 
+def fachbegriff_aus_thema_ermitteln(thema: str) -> str:
+    """Extrahiert den Fachbegriff aus dem Thema, z.B. aus
+    'Warum ... (Blinder Fleck)' wird 'Blinder Fleck'."""
+    treffer = re.search(r'\(([^)]+)\)\s*$', thema)
+    if treffer:
+        return treffer.group(1).strip()
+    return ""
+
+
 def generiere_skript(thema: str) -> dict:
+    fachbegriff = fachbegriff_aus_thema_ermitteln(thema)
+    nutzer_nachricht = f"Thema für heute: {thema}"
+    if fachbegriff:
+        nutzer_nachricht += (
+            f"\n\nWICHTIG: Der Fachbegriff für dieses Thema lautet exakt "
+            f"'{fachbegriff}'. Nenne das Phänomen im KERN-Teil genau mit "
+            f"diesem Begriff (nicht mit einer anderen, z.B. englischen "
+            f"Bezeichnung), und verwende im CTA-Übergangssatz kein Wort "
+            f"daraus wieder."
+        )
+
     for versuch in range(1, MAX_GENERIERUNGS_VERSUCHE + 1):
         response = client.messages.create(
             model="claude-sonnet-4-6",
             max_tokens=1000,
             system=SYSTEM_PROMPT,
             messages=[
-                {"role": "user", "content": f"Thema für heute: {thema}"}
+                {"role": "user", "content": nutzer_nachricht}
             ],
         )
         text = response.content[0].text.strip()
@@ -239,8 +268,6 @@ def thema_ohne_wiederholung_waehlen() -> str:
 
 
 def vorhandenes_test_skript_pruefen() -> bool:
-    """Prüft, ob bereits ein Test-Skript mit demselben Test-Thema
-    existiert. Falls ja, muss nichts neu generiert werden."""
     if not os.path.exists(SKRIPT_DATEI):
         return False
     with open(SKRIPT_DATEI, encoding="utf-8") as f:
