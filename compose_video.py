@@ -34,7 +34,7 @@ FONT_PFAD = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 POP_DAUER = 2.5
 POP_SOUND_LAUTSTAERKE = 0.55
 
-BADGE_AKTIV = False
+BADGE_AKTIV = True
 
 BOUNCE_START_GROESSE = 20
 BOUNCE_UEBERSCHWINGEN = 82
