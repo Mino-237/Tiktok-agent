@@ -6,14 +6,15 @@ Setzt das finale Video zusammen aus:
 4. Tonspur: output/voiceover_full.mp3
 5. Sound-Effekt (assets/pop_sound.wav) beim Effekt-Moment
 
-NEU - PRÄZISES TIMING FÜR DEN EFFEKT-MOMENT: Bisher wurde der Zeitpunkt
-für den Fachbegriff-Pop nur GESCHÄTZT (basierend auf Wortanzahl-
-Proportionen), was zu spürbaren Abweichungen zwischen Bild und
-tatsächlich gesprochenem Wort führte. Jetzt wird stattdessen in
-output/captions.json (den echten Whisper-Zeitstempeln) nach dem ersten
-Wort des Fachbegriffs gesucht und GENAU dieser Zeitpunkt genutzt. Nur
-falls der Begriff dort nicht gefunden wird, greift die alte Schätzung
-als Sicherheitsnetz.
+PRÄZISES TIMING FÜR DEN EFFEKT-MOMENT (überarbeitet): Es wird in
+output/captions.json nach der Stelle gesucht, an der der Fachbegriff
+GENAU gesprochen wird. NEU: Es reicht nicht mehr, nur das ERSTE Wort
+des Fachbegriffs zu finden - bei mehrteiligen Begriffen (z.B. "Blinder
+Fleck") muss auch das ZWEITE Wort kurz danach folgen. Grund: Ein
+einzelnes Wort (z.B. "blind") kann später im Skript nochmal auftauchen
+(z.B. in einem humorvollen CTA-Wortwitz wie "Club der blinden Spiegel")
+- ohne diese Prüfung würde der Effekt-Moment fälschlich an dieser
+späteren, falschen Stelle statt beim eigentlichen Kern-Teil ausgelöst.
 """
 
 import subprocess
@@ -41,6 +42,8 @@ BOUNCE_ZIEL_GROESSE = 68
 BOUNCE_WACHSEN_DAUER = 0.15
 BOUNCE_EINPENDELN_DAUER = 0.12
 
+SUCH_FENSTER_WOERTER = 3
+
 
 def fachbegriff_ermitteln(skript_daten: dict) -> str:
     thema = skript_daten.get("thema_original", "")
@@ -54,28 +57,52 @@ def wort_normalisieren(text: str) -> str:
     return re.sub(r'[^\wäöüß]', '', text.lower())
 
 
+def wort_passt(gesucht_norm: str, kandidat_text: str) -> bool:
+    kandidat_norm = wort_normalisieren(kandidat_text)
+    if not kandidat_norm:
+        return False
+    if kandidat_norm == gesucht_norm:
+        return True
+    if len(gesucht_norm) >= 4 and gesucht_norm[:4] in kandidat_norm:
+        return True
+    return False
+
+
 def echten_start_zeitpunkt_suchen(fachbegriff: str, fallback: float) -> float:
-    """Sucht in den echten Whisper-Zeitstempeln (captions.json) nach dem
-    ERSTEN WORT des Fachbegriffs und gibt dessen exakten Start-Zeitpunkt
-    zurück. Fällt auf die Schätzung zurück, falls nichts gefunden wird."""
+    """Sucht in den echten Whisper-Zeitstempeln (captions.json) nach der
+    Stelle, an der der KOMPLETTE Fachbegriff gesprochen wird (nicht nur
+    ein einzelnes, eventuell mehrfach vorkommendes Wort davon)."""
     if not fachbegriff or not os.path.exists(CAPTIONS_JSON):
         return fallback
 
-    erstes_wort = re.split(r'[\s\-]+', fachbegriff.strip())[0]
-    erstes_wort_norm = wort_normalisieren(erstes_wort)
-    if not erstes_wort_norm:
+    fachbegriff_teile = [
+        wort_normalisieren(w) for w in re.split(r'[\s\-]+', fachbegriff.strip())
+    ]
+    fachbegriff_teile = [t for t in fachbegriff_teile if t]
+    if not fachbegriff_teile:
         return fallback
 
     with open(CAPTIONS_JSON, encoding="utf-8") as f:
         woerter = json.load(f)
 
-    for wort in woerter:
-        if wort_normalisieren(wort["text"]) == erstes_wort_norm:
+    erstes_wort = fachbegriff_teile[0]
+
+    if len(fachbegriff_teile) == 1:
+        for wort in woerter:
+            if wort_passt(erstes_wort, wort["text"]):
+                return wort["start"]
+        return fallback
+
+    zweites_wort = fachbegriff_teile[1]
+    for i, wort in enumerate(woerter):
+        if not wort_passt(erstes_wort, wort["text"]):
+            continue
+        fenster = woerter[i + 1:i + 1 + SUCH_FENSTER_WOERTER]
+        if any(wort_passt(zweites_wort, w["text"]) for w in fenster):
             return wort["start"]
 
     for wort in woerter:
-        wort_norm = wort_normalisieren(wort["text"])
-        if len(erstes_wort_norm) >= 4 and erstes_wort_norm[:4] in wort_norm:
+        if wort_passt(erstes_wort, wort["text"]):
             return wort["start"]
 
     return fallback
