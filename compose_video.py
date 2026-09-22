@@ -179,7 +179,7 @@ def video_zusammensetzen():
         vorstufen_filter.append(
             f"[{aktuelles_label}]drawtext=fontfile={FONT_PFAD}:text='{begriff_text}':"
             f"fontsize='{fontsize_ausdruck}':fontcolor=0xFFD24D:"
-            f"x=(w-text_w)/2:y=h*0.38:"
+            f"x=(w-text_w)/2:y=h*0.22:"
             f"box=1:boxcolor=black@0.45:boxborderw=24:"
             f"enable='between(t,{start:.2f},{ende:.2f})'[vpop]"
         )
